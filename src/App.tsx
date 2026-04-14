@@ -20,13 +20,21 @@ interface Task {
   deadline?: string
 }
 
-function MainApp({ storagePath }: { storagePath: string | null }) {
+function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: string | null; databaseName: string; loadedTasks?: Task[] | null }) {
   const [tasks, setTasks, isReady] = useEncryptedStorage<Task[]>('tasks', [], storagePath)
   const [newTaskText, setNewTaskText] = useState('')
   const [newTaskDeadline, setNewTaskDeadline] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const [editDeadline, setEditDeadline] = useState('')
+  const isLoadedFile = !!loadedTasks
+
+  // If tasks were loaded from an external file, use those instead
+  useEffect(() => {
+    if (loadedTasks && loadedTasks.length > 0) {
+      setTasks(loadedTasks);
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [pinDialogMode, setPinDialogMode] = useState<'export' | 'import' | null>(null)
   const [pinDialogValue, setPinDialogValue] = useState('')
@@ -250,18 +258,23 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
-        <div className="bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col bg-card overflow-hidden">
           <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-accent/5">
             <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground tracking-tight">My Tasks</h1>
-                {activeTasks.length > 0 && (
-                  <Badge variant="secondary" className="text-sm">
-                    {activeTasks.length} active
-                  </Badge>
-                )}
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-foreground tracking-tight">{databaseName}</h1>
+                  {activeTasks.length > 0 && (
+                    <Badge variant="secondary" className="text-sm">
+                      {activeTasks.length} active
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground font-mono truncate max-w-xs" title={isLoadedFile ? 'Loaded from file' : (storagePath || 'Browser local storage')}>
+                  {isLoadedFile ? 'Loaded from file' : (storagePath || 'Browser local storage')}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="icon" onClick={() => setDarkMode(d => !d)} title="Toggle theme">
@@ -320,7 +333,7 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
             </div>
           </div>
 
-          <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+          <div className="flex-1 p-6 space-y-6 overflow-y-auto">
             {(tasks || []).length === 0 ? (
               <div className="text-center py-16 px-4">
                 <div className="w-16 h-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
@@ -617,6 +630,8 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [storagePath, setStoragePath] = useState<string | null>(null);
+  const [databaseName, setDatabaseName] = useState('My Tasks');
+  const [loadedTasks, setLoadedTasks] = useState<Task[] | null>(null);
 
   // Auto-lock after 5 minutes of inactivity
   const lockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -630,6 +645,7 @@ export default function App() {
       lockTimeoutRef.current = setTimeout(() => {
         clearEncryptionKey();
         setIsAuthenticated(false);
+        setLoadedTasks(null);
         toast('Locked due to inactivity');
       }, AUTO_LOCK_MS);
     };
@@ -644,9 +660,28 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
+  const handleLoadFile = (tasks: Task[], fileName: string) => {
+    const name = fileName
+      .replace(/[-_]/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+    setDatabaseName(name);
+    setLoadedTasks(tasks);
+    setIsAuthenticated(true);
+  };
+
   if (!isAuthenticated) {
-    return <PinScreen onUnlock={(hash, p) => { setIsAuthenticated(true); setStoragePath(p); }} />;
+    return (
+      <PinScreen
+        onUnlock={(hash, p) => {
+          setIsAuthenticated(true);
+          setStoragePath(p);
+          setDatabaseName('My Tasks');
+          setLoadedTasks(null);
+        }}
+        onLoadFile={handleLoadFile}
+      />
+    );
   }
 
-  return <MainApp storagePath={storagePath} />;
+  return <MainApp storagePath={storagePath} databaseName={databaseName} loadedTasks={loadedTasks} />;
 }

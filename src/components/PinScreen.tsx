@@ -1,20 +1,25 @@
-import { useState, useEffect } from 'react';
-import { LockKey, Keyhole, FolderOpen } from '@phosphor-icons/react';
+import { useState, useEffect, useRef } from 'react';
+import { LockKey, Keyhole, FolderOpen, FileArrowUp } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { hashPin, setEncryptionKeyFromPin } from '@/lib/encryption';
+import { Separator } from '@/components/ui/separator';
+import { hashPin, setEncryptionKeyFromPin, decryptDataWithPin } from '@/lib/encryption';
 import { toast } from 'sonner';
 
 interface PinScreenProps {
-  onUnlock: (pinTargetHash: string, folderPath: string | null) => void;
+  onUnlock: (pinTargetHash: string, folderPath: string | null, dbName?: string) => void;
+  onLoadFile: (tasks: any[], fileName: string) => void;
 }
 
-export function PinScreen({ onUnlock }: PinScreenProps) {
+export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
   const [pin, setPin] = useState('');
   const [isSetup, setIsSetup] = useState(true);
   const [storedHash, setStoredHash] = useState<string | null>(null);
   const [storagePath, setStoragePath] = useState<string | null>(null);
   const [isElectron, setIsElectron] = useState(false);
+  const [loadFilePin, setLoadFilePin] = useState('');
+  const [pendingFile, setPendingFile] = useState<{ content: any; name: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function loadConfig() {
@@ -62,7 +67,6 @@ export function PinScreen({ onUnlock }: PinScreenProps) {
     const currentHash = hashPin(pin);
 
     if (isSetup) {
-      // Set new PIN
       setEncryptionKeyFromPin(pin);
       
       if (isElectron) {
@@ -74,7 +78,6 @@ export function PinScreen({ onUnlock }: PinScreenProps) {
       toast.success('PIN created. Keys generated.');
       onUnlock(currentHash, storagePath);
     } else {
-      // Verify existing PIN
       if (currentHash === storedHash) {
         setEncryptionKeyFromPin(pin);
         onUnlock(currentHash, storagePath);
@@ -84,6 +87,48 @@ export function PinScreen({ onUnlock }: PinScreenProps) {
       }
     }
   };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fileName = file.name.replace(/\.(json|enc)$/i, '');
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = JSON.parse(event.target?.result as string);
+        if (content && content.encryptedData) {
+          setPendingFile({ content, name: fileName });
+          setLoadFilePin('');
+        } else if (Array.isArray(content)) {
+          onLoadFile(content, fileName);
+        } else {
+          toast.error('Invalid task file format');
+        }
+      } catch {
+        toast.error('Failed to parse file');
+      }
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  const handleLoadFileDecrypt = () => {
+    if (!pendingFile || loadFilePin.length < 4) return;
+    const decrypted = decryptDataWithPin(pendingFile.content.encryptedData, loadFilePin);
+    if (Array.isArray(decrypted)) {
+      onLoadFile(decrypted, pendingFile.name);
+      setPendingFile(null);
+      setLoadFilePin('');
+    } else {
+      toast.error('Decryption failed. Wrong PIN or corrupted file.');
+      setLoadFilePin('');
+    }
+  };
+
+  const storageLocationLabel = isElectron
+    ? (storagePath || 'Not configured')
+    : 'Browser local storage (IndexedDB)';
 
   return (
     <div className="flex w-full min-h-screen items-center justify-center p-6 sm:p-12 md:p-24 bg-background">
@@ -99,6 +144,14 @@ export function PinScreen({ onUnlock }: PinScreenProps) {
             {isSetup ? 'Create a secure PIN. This encrypts all your data entirely on your device. Do not forget it!' : 'Enter your PIN to decrypt your local tasks.'}
           </p>
         </div>
+
+        {!isSetup && (
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground font-mono truncate" title={storageLocationLabel}>
+              {storageLocationLabel}
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
@@ -158,6 +211,60 @@ export function PinScreen({ onUnlock }: PinScreenProps) {
             {isSetup ? 'Secure & Continue' : 'Decrypt Tasks'}
           </Button>
         </form>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Separator className="flex-1" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <Separator className="flex-1" />
+          </div>
+
+          {pendingFile ? (
+            <div className="space-y-3">
+              <p className="text-sm text-center text-muted-foreground">
+                Decrypt <span className="font-medium text-foreground">{pendingFile.name}</span>
+              </p>
+              <Input
+                type="password"
+                placeholder="File PIN..."
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={loadFilePin}
+                onChange={(e) => setLoadFilePin(e.target.value.replace(/[^0-9]/g, ''))}
+                className="text-center text-xl tracking-[0.5em] font-mono h-12"
+                onKeyDown={(e) => { if (e.key === 'Enter') handleLoadFileDecrypt(); }}
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => { setPendingFile(null); setLoadFilePin(''); }}>
+                  Cancel
+                </Button>
+                <Button type="button" className="flex-1" onClick={handleLoadFileDecrypt} disabled={loadFilePin.length < 4}>
+                  Decrypt & Load
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,.enc"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 gap-2"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <FileArrowUp className="w-5 h-5" />
+                Load a task file
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
