@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
 import { Plus, Trash, LockKey } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useEncryptedStorage } from '@/lib/useEncryptedTasks'
 
 interface Task {
   id: string
@@ -17,7 +17,7 @@ interface Task {
 }
 
 function App() {
-  const [tasks, setTasks] = useKV<Task[]>('tasks', [])
+  const [tasks, setTasks, isReady] = useEncryptedStorage<Task[]>('tasks', [])
   const [newTaskText, setNewTaskText] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
