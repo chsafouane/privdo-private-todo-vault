@@ -4,7 +4,7 @@ const fs = require('fs/promises')
 
 const isDev = process.env.NODE_ENV === 'development';
 
-const CONFIG_PATH = path.join(app.getPath('userData'), 'local-todo-config.json');
+const CONFIG_PATH = path.join(app.getPath('userData'), 'privdo-config.json');
 
 async function getConfig() {
   try {

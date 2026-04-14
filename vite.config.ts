@@ -25,9 +25,9 @@ export default defineConfig({
         enabled: true
       },
       manifest: {
-        name: 'Local Todo Manager',
-        short_name: 'Todo',
-        description: 'Locally Encrypted Todo App',
+        name: 'Privdo',
+        short_name: 'Privdo',
+        description: 'Private encrypted todo list',
         theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',

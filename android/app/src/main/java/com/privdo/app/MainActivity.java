@@ -1,4 +1,4 @@
-package com.localtodomanager.app;
+package com.privdo.app;
 
 import com.getcapacitor.BridgeActivity;
 

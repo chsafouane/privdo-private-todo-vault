@@ -93,7 +93,7 @@ export function PinScreen({ onUnlock }: PinScreenProps) {
             <LockKey className="w-6 h-6 text-primary" weight="duotone" />
           </div>
           <h2 className="text-2xl font-bold tracking-tight">
-            {isSetup ? 'Setup Local Todo' : 'Unlock Todos'}
+            {isSetup ? 'Setup Privdo' : 'Unlock Privdo'}
           </h2>
           <p className="text-muted-foreground text-sm">
             {isSetup ? 'Create a secure PIN. This encrypts all your data entirely on your device. Do not forget it!' : 'Enter your PIN to decrypt your local tasks.'}

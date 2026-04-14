@@ -1,4 +1,4 @@
-# Local Todo Manager
+# Privdo
 
 A simple, private, and secure todo list application that encrypts your tasks locally on your device. Designed with privacy in mind—no cloud storage, no account required, and fully offline capable.
 

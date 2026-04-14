@@ -1,5 +1,5 @@
 {
-  "name": "spark-template",
+  "name": "privdo",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -114,8 +114,8 @@
   },
   "main": "electron/main.cjs",
   "build": {
-    "appId": "com.localtodomanager.app",
-    "productName": "Local Todo Manager",
+    "appId": "com.privdo.app",
+    "productName": "Privdo",
     "directories": {
       "output": "release"
     },

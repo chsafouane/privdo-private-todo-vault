@@ -26,6 +26,7 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
   const [newTaskDeadline, setNewTaskDeadline] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+  const [editDeadline, setEditDeadline] = useState('')
 
   const [pinDialogMode, setPinDialogMode] = useState<'export' | 'import' | null>(null)
   const [pinDialogValue, setPinDialogValue] = useState('')
@@ -133,6 +134,7 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
   const startEdit = (task: Task) => {
     setEditingId(task.id)
     setEditText(task.text)
+    setEditDeadline(task.deadline || '')
   }
 
   const saveEdit = () => {
@@ -146,16 +148,18 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
 
     setTasks(current =>
       (current || []).map(task =>
-        task.id === editingId ? { ...task, text: trimmed } : task
+        task.id === editingId ? { ...task, text: trimmed, deadline: editDeadline || undefined } : task
       )
     )
     setEditingId(null)
     setEditText('')
+    setEditDeadline('')
   }
 
   const cancelEdit = () => {
     setEditingId(null)
     setEditText('')
+    setEditDeadline('')
   }
 
   const triggerExport = () => {
@@ -179,7 +183,7 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = 'local_todo_secure_backup.json'
+    link.download = 'privdo_backup.json'
     link.click()
     URL.revokeObjectURL(url)
     toast.success('Secure backup exported successfully')
@@ -354,17 +358,50 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
                           />
                           
                           {editingId === task.id ? (
-                            <Input
-                              value={editText}
-                              onChange={(e) => setEditText(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') saveEdit()
-                                if (e.key === 'Escape') cancelEdit()
-                              }}
-                              onBlur={saveEdit}
-                              className="flex-1 h-9"
-                              autoFocus
-                            />
+                            <div className="flex-1 flex flex-col gap-2">
+                              <Input
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveEdit()
+                                  if (e.key === 'Escape') cancelEdit()
+                                }}
+                                onBlur={(e) => {
+                                  if (!e.relatedTarget?.closest('[data-edit-deadline]')) saveEdit()
+                                }}
+                                className="flex-1 h-9"
+                                autoFocus
+                              />
+                              <div className="flex items-center gap-2">
+                                <Clock size={14} className="text-muted-foreground flex-shrink-0" />
+                                <Input
+                                  type="datetime-local"
+                                  data-edit-deadline
+                                  value={editDeadline}
+                                  onChange={(e) => setEditDeadline(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') saveEdit()
+                                    if (e.key === 'Escape') cancelEdit()
+                                  }}
+                                  onBlur={(e) => {
+                                    if (!e.relatedTarget?.closest('[data-edit-deadline]') && e.relatedTarget?.tagName !== 'INPUT') saveEdit()
+                                  }}
+                                  className="h-8 w-fit text-xs bg-background"
+                                />
+                                {editDeadline && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    data-edit-deadline
+                                    onClick={() => setEditDeadline('')}
+                                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                    title="Remove deadline"
+                                  >
+                                    <Trash size={12} />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
                           ) : (
                             <div className="flex-1 flex flex-col min-w-0">
                               <label
