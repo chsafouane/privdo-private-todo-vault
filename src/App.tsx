@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Trash, LockKey } from '@phosphor-icons/react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Trash, LockKey, Clock, DownloadSimple, UploadSimple } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -8,20 +8,64 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEncryptedStorage } from '@/lib/useEncryptedTasks'
+import { encryptDataWithPin, decryptDataWithPin, encryptData, decryptData } from '@/lib/encryption'
 import { PinScreen } from '@/components/PinScreen'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface Task {
   id: string
   text: string
   completed: boolean
   createdAt: number
+  deadline?: string
 }
 
 function MainApp({ storagePath }: { storagePath: string | null }) {
   const [tasks, setTasks, isReady] = useEncryptedStorage<Task[]>('tasks', [], storagePath)
   const [newTaskText, setNewTaskText] = useState('')
+  const [newTaskDeadline, setNewTaskDeadline] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+
+  const [pinDialogMode, setPinDialogMode] = useState<'export' | 'import' | null>(null)
+  const [pinDialogValue, setPinDialogValue] = useState('')
+  const [pendingImportContent, setPendingImportContent] = useState<any>(null)
+
+  const notifiedTasks = useRef<Set<string>>(new Set())
+
+  // Request notifications permission
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
+      Notification.requestPermission()
+    }
+  }, [])
+
+  // Check deadlines
+  useEffect(() => {
+    if (!tasks || tasks.length === 0) return
+
+    const checkReminders = () => {
+      const now = Date.now()
+      tasks.forEach(task => {        
+        if (!task.completed && task.deadline) {
+          const dl = new Date(task.deadline).getTime()
+          if (now >= dl && !notifiedTasks.current.has(task.id)) {
+            notifiedTasks.current.add(task.id)
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification("Task Reminder: " + task.text, {
+                body: "Your task deadline has passed.",
+                icon: "/favicon.ico"
+              })
+            }
+          }
+        }
+      })
+    }
+
+    checkReminders()
+    const interval = setInterval(checkReminders, 60000)
+    return () => clearInterval(interval)
+  }, [tasks])
 
   const activeTasks = (tasks || []).filter(t => !t.completed)
   const completedTasks = (tasks || []).filter(t => t.completed)
@@ -83,36 +127,154 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
     setEditText('')
   }
 
+  const triggerExport = () => {
+    if (!tasks || tasks.length === 0) {
+      toast.error('No tasks to export')
+      return
+    }
+    setPinDialogValue('')
+    setPinDialogMode('export')
+  }
+
+  const handleExportConfirm = () => {
+    if (!tasks || !pinDialogValue.trim()) return
+    const encrypted = encryptDataWithPin(tasks, pinDialogValue)
+    const exportObject = {
+      version: 1,
+      encryptedData: encrypted
+    }
+    const dataStr = JSON.stringify(exportObject, null, 2)
+    const blob = new Blob([dataStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'local_todo_secure_backup.json'
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success('Secure backup exported successfully')
+    setPinDialogMode(null)
+    setPinDialogValue('')
+  }
+  
+  const handleImportConfirm = () => {
+    if (!pendingImportContent || !pinDialogValue.trim()) return
+    const fileContent = pendingImportContent
+    
+    // Handle encrypted backups
+    if (fileContent && fileContent.encryptedData) {
+      const decryptedTasks = decryptDataWithPin(fileContent.encryptedData, pinDialogValue)
+      if (Array.isArray(decryptedTasks)) {
+        setTasks(decryptedTasks)
+        toast.success('Secure database imported successfully')
+        setPinDialogMode(null)
+        setPinDialogValue('')
+        setPendingImportContent(null)
+      } else {
+        toast.error('Decryption failed. Invalid PIN or corrupted backup.')
+      }
+    } 
+    // Fallback for unencrypted
+    else if (Array.isArray(fileContent)) {
+      setTasks(fileContent)
+      toast.success('Unencrypted database imported successfully')
+      setPinDialogMode(null)
+      setPinDialogValue('')
+      setPendingImportContent(null)
+    } else {
+      toast.error('Invalid database format')
+      setPinDialogMode(null)
+      setPinDialogValue('')
+      setPendingImportContent(null)
+    }
+  }
+
+  const triggerImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const fileContent = JSON.parse(event.target?.result as string)
+        if (fileContent && fileContent.encryptedData) {
+          setPendingImportContent(fileContent)
+          setPinDialogValue('')
+          setPinDialogMode('import')
+        } else if (Array.isArray(fileContent)) {
+          setTasks(fileContent)
+          toast.success('Unencrypted database imported successfully')
+        } else {
+          toast.error('Invalid database format')
+        }
+      } catch (err) {
+        toast.error('Failed to parse database file')
+      }
+      e.target.value = ''
+    }
+    reader.readAsText(file)
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         <div className="bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
           <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-accent/5">
             <div className="flex items-center justify-between mb-6">
-              <h1 className="text-2xl font-bold text-foreground tracking-tight">My Tasks</h1>
-              {activeTasks.length > 0 && (
-                <Badge variant="secondary" className="text-sm">
-                  {activeTasks.length} active
-                </Badge>
-              )}
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-foreground tracking-tight">My Tasks</h1>
+                {activeTasks.length > 0 && (
+                  <Badge variant="secondary" className="text-sm">
+                    {activeTasks.length} active
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon" onClick={triggerExport} title="Export Database">
+                  <DownloadSimple size={18} />
+                </Button>
+                <div className="relative">
+                  <Input
+                    type="file"
+                    accept=".json"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={triggerImport}
+                    title="Import Database"
+                  />
+                  <Button variant="outline" size="icon" className="pointer-events-none">
+                    <UploadSimple size={18} />
+                  </Button>
+                </div>
+              </div>
             </div>
 
-            <div className="flex gap-3">
-              <Input
-                id="new-task-input"
-                value={newTaskText}
-                onChange={(e) => setNewTaskText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') addTask()
-                }}
-                placeholder="Add a new task..."
-                className="flex-1 h-12 text-base bg-background"
-                autoFocus
-              />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 flex gap-2 w-full">
+                <Input
+                  id="new-task-input"
+                  value={newTaskText}
+                  onChange={(e) => setNewTaskText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newTaskText.trim()) addTask()
+                  }}
+                  placeholder="Add a new task..."
+                  className="flex-1 h-12 text-base bg-background min-w-0"
+                  autoFocus
+                />
+                <Input
+                  type="datetime-local"
+                  value={newTaskDeadline}
+                  onChange={(e) => setNewTaskDeadline(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newTaskText.trim()) addTask()
+                  }}
+                  className="flex-shrink-0 h-12 w-fit bg-background text-sm text-foreground items-center"
+                  aria-label="Set a deadline (optional)"
+                />
+              </div>
               <Button
                 onClick={addTask}
                 disabled={!newTaskText.trim()}
-                className="h-12 px-6 gap-2"
+                className="h-12 w-full sm:w-auto px-6 gap-2"
               >
                 <Plus size={20} weight="bold" />
                 Add
@@ -164,16 +326,37 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
                               autoFocus
                             />
                           ) : (
-                            <label
-                              htmlFor={`task-${task.id}`}
-                              onClick={(e) => {
-                                e.preventDefault()
-                                startEdit(task)
-                              }}
-                              className="flex-1 text-base text-foreground cursor-pointer select-none"
-                            >
-                              {task.text}
-                            </label>
+                            <div className="flex-1 flex flex-col min-w-0">
+                              <label
+                                htmlFor={`task-${task.id}`}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  startEdit(task)
+                                }}
+                                className="text-base text-foreground cursor-pointer select-none truncate"
+                              >
+                                {task.text}
+                              </label>
+                              {task.deadline && (
+                                <div className="flex items-center gap-1.5 text-xs mt-1">
+                                  {new Date(task.deadline).getTime() < Date.now() ? (
+                                    <>
+                                      <Clock size={14} weight="bold" className="text-destructive" />
+                                      <span className="text-destructive font-medium">
+                                        {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Clock size={14} className="text-muted-foreground" />
+                                      <span className="text-muted-foreground">
+                                        {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           )}
 
                           <Button
@@ -216,12 +399,22 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
                               className="mt-0.5"
                             />
                             
-                            <label
-                              htmlFor={`task-${task.id}`}
-                              className="flex-1 text-base text-muted-foreground line-through cursor-pointer select-none"
-                            >
-                              {task.text}
-                            </label>
+                            <div className="flex-1 flex flex-col min-w-0">
+                              <label
+                                htmlFor={`task-${task.id}`}
+                                className="text-base text-muted-foreground line-through cursor-pointer select-none truncate"
+                              >
+                                {task.text}
+                              </label>
+                              {task.deadline && (
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60 mt-1">
+                                  <Clock size={14} />
+                                  <span>
+                                    {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
 
                             <Button
                               variant="ghost"
@@ -265,6 +458,64 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
           </div>
         </div>
       </div>
+      
+      <Dialog open={pinDialogMode !== null} onOpenChange={(open) => {
+        if (!open) {
+          setPinDialogMode(null)
+          setPinDialogValue('')
+          setPendingImportContent(null)
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {pinDialogMode === 'import' ? 'Decrypt Backup' : 'Encrypt Backup'}
+            </DialogTitle>
+            <DialogDescription>
+              {pinDialogMode === 'import' 
+                ? 'Enter the PIN used to encrypt this backup file.' 
+                : 'Enter a PIN to encrypt this backup. You will need it to import these tasks later.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center space-x-2 py-4">
+            <Input
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={pinDialogValue}
+              onChange={(e) => setPinDialogValue(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="Enter PIN..."
+              className="text-center text-xl tracking-[0.5em] font-mono h-12"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  pinDialogMode === 'import' ? handleImportConfirm() : handleExportConfirm()
+                }
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={() => {
+                setPinDialogMode(null)
+                setPinDialogValue('')
+                setPendingImportContent(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button" 
+              onClick={pinDialogMode === 'import' ? handleImportConfirm : handleExportConfirm}
+              disabled={pinDialogValue.length < 4}
+            >
+              {pinDialogMode === 'import' ? 'Import' : 'Export'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

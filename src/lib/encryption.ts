@@ -24,6 +24,33 @@ export function hashPin(pin: string): string {
   return CryptoJS.SHA256(pin).toString();
 }
 
+export function encryptDataWithPin(data: any, pin: string): string {
+  const salt = CryptoJS.enc.Utf8.parse('local-todo-manager-salt');
+  const tempKey = CryptoJS.PBKDF2(pin, salt, { keySize: 128 / 32, iterations: 1000 }).toString();
+  try {
+    const jsonStr = JSON.stringify(data);
+    return CryptoJS.AES.encrypt(jsonStr, tempKey).toString();
+  } catch (error) {
+    console.error('Encryption failing', error);
+    return '';
+  }
+}
+
+export function decryptDataWithPin(cipherText: string, pin: string): any {
+  const salt = CryptoJS.enc.Utf8.parse('local-todo-manager-salt');
+  const tempKey = CryptoJS.PBKDF2(pin, salt, { keySize: 128 / 32, iterations: 1000 }).toString();
+  if (!cipherText) return null;
+  try {
+    const bytes = CryptoJS.AES.decrypt(cipherText, tempKey);
+    const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+    if (!decryptedString) return null;
+    return JSON.parse(decryptedString);
+  } catch (error) {
+    console.error('Decryption failing', error);
+    return null;
+  }
+}
+
 export function encryptData(data: any): string {
   if (!encryptionKey) throw new Error('Encryption key not set');
   try {
