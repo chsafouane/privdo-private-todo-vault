@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEncryptedStorage } from '@/lib/useEncryptedTasks'
+import { PinScreen } from '@/components/PinScreen'
 
 interface Task {
   id: string
@@ -16,8 +17,8 @@ interface Task {
   createdAt: number
 }
 
-function App() {
-  const [tasks, setTasks, isReady] = useEncryptedStorage<Task[]>('tasks', [])
+function MainApp({ storagePath }: { storagePath: string | null }) {
+  const [tasks, setTasks, isReady] = useEncryptedStorage<Task[]>('tasks', [], storagePath)
   const [newTaskText, setNewTaskText] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
@@ -268,4 +269,13 @@ function App() {
   )
 }
 
-export default App
+export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [storagePath, setStoragePath] = useState<string | null>(null);
+
+  if (!isAuthenticated) {
+    return <PinScreen onUnlock={(hash, p) => { setIsAuthenticated(true); setStoragePath(p); }} />;
+  }
+
+  return <MainApp storagePath={storagePath} />;
+}
