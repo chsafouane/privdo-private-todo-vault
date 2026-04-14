@@ -11,9 +11,16 @@
     "optimize": "vite optimize",
     "preview": "vite preview",
     "electron:dev": "cross-env NODE_ENV=development concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "npm run build && electron-builder"
+    "electron:build": "npm run build && electron-builder",
+    "cap:sync": "npm run build && npx cap sync",
+    "ios:open": "npm run cap:sync && npx cap open ios",
+    "android:open": "npm run cap:sync && npx cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/ios": "^8.3.0",
     "@github/spark": ">=0.43.1 <1",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^4.1.3",

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Local Todo Manager</string>
+    <string name="title_activity_main">Local Todo Manager</string>
+    <string name="package_name">com.localtodomanager.app</string>
+    <string name="custom_url_scheme">com.localtodomanager.app</string>
+</resources>
