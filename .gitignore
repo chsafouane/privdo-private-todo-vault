@@ -32,3 +32,9 @@ pids
 .devcontainer/
 
 .spark-workbench-id
+
+# Electron Desktop App builds
+release/
+release-mac/
+dist/
+dist-electron/
