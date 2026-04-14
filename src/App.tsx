@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash, LockKey, Clock, DownloadSimple, UploadSimple } from '@phosphor-icons/react'
+import { Plus, Trash, LockKey, Clock, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEncryptedStorage } from '@/lib/useEncryptedTasks'
-import { encryptDataWithPin, decryptDataWithPin, encryptData, decryptData } from '@/lib/encryption'
+import { encryptDataWithPin, decryptDataWithPin, clearEncryptionKey } from '@/lib/encryption'
 import { PinScreen } from '@/components/PinScreen'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -30,8 +30,32 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
   const [pinDialogMode, setPinDialogMode] = useState<'export' | 'import' | null>(null)
   const [pinDialogValue, setPinDialogValue] = useState('')
   const [pendingImportContent, setPendingImportContent] = useState<any>(null)
+  const [completedCollapsed, setCompletedCollapsed] = useState(true)
+  const [darkMode, setDarkMode] = useState(() => {
+    const stored = localStorage.getItem('theme');
+    if (stored) return stored === 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  })
 
   const notifiedTasks = useRef<Set<string>>(new Set())
+
+  // Apply dark mode class
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+  }, [darkMode])
+
+  // Offline/online indicator
+  useEffect(() => {
+    const handleOffline = () => toast('You are offline — your tasks are safe locally', { duration: 3000 })
+    const handleOnline = () => toast.success('Back online', { duration: 2000 })
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('online', handleOnline)
+    return () => {
+      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [])
 
   // Request notifications permission
   useEffect(() => {
@@ -78,11 +102,13 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
       id: Date.now().toString(),
       text: trimmed,
       completed: false,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      ...(newTaskDeadline ? { deadline: newTaskDeadline } : {})
     }
 
     setTasks(current => [...(current || []), newTask])
     setNewTaskText('')
+    setNewTaskDeadline('')
     toast.success('Task added')
   }
 
@@ -97,6 +123,11 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
   const deleteTask = (id: string) => {
     setTasks(current => (current || []).filter(task => task.id !== id))
     toast.success('Task deleted')
+  }
+
+  const clearCompleted = () => {
+    setTasks(current => (current || []).filter(task => !task.completed))
+    toast.success('Cleared completed tasks')
   }
 
   const startEdit = (task: Task) => {
@@ -229,6 +260,9 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
                 )}
               </div>
               <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon" onClick={() => setDarkMode(d => !d)} title="Toggle theme">
+                  {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+                </Button>
                 <Button variant="outline" size="icon" onClick={triggerExport} title="Export Database">
                   <DownloadSimple size={18} />
                 </Button>
@@ -304,7 +338,13 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, x: -100 }}
                           transition={{ duration: 0.2 }}
-                          className="group flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
+                          drag="x"
+                          dragConstraints={{ left: 0, right: 0 }}
+                          dragElastic={0.3}
+                          onDragEnd={(_e, info) => {
+                            if (info.offset.x < -120) deleteTask(task.id)
+                          }}
+                          className="group flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors touch-pan-y"
                         >
                           <Checkbox
                             id={`task-${task.id}`}
@@ -363,7 +403,7 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
                             variant="ghost"
                             size="icon"
                             onClick={() => deleteTask(task.id)}
-                            className="opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
+                            className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
                           >
                             <Trash size={18} />
                           </Button>
@@ -378,11 +418,28 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
                     {activeTasks.length > 0 && <Separator className="my-6" />}
                     
                     <div className="space-y-2">
-                      <h2 className="text-sm font-medium text-muted-foreground px-3 mb-3">
-                        Completed ({completedTasks.length})
-                      </h2>
+                      <div className="flex items-center justify-between px-3 mb-3">
+                        <button
+                          onClick={() => setCompletedCollapsed(c => !c)}
+                          className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <motion.div animate={{ rotate: completedCollapsed ? -90 : 0 }} transition={{ duration: 0.15 }}>
+                            <CaretDown size={14} weight="bold" />
+                          </motion.div>
+                          Completed ({completedTasks.length})
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={clearCompleted}
+                          className="h-7 text-xs text-muted-foreground hover:text-destructive gap-1"
+                        >
+                          <TrashSimple size={14} />
+                          Clear all
+                        </Button>
+                      </div>
                       <AnimatePresence mode="popLayout">
-                        {completedTasks.map((task) => (
+                        {!completedCollapsed && completedTasks.map((task) => (
                           <motion.div
                             key={task.id}
                             layout
@@ -420,7 +477,7 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
                               variant="ghost"
                               size="icon"
                               onClick={() => deleteTask(task.id)}
-                              className="opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
+                              className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
                             >
                               <Trash size={18} />
                             </Button>
@@ -523,6 +580,32 @@ function MainApp({ storagePath }: { storagePath: string | null }) {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [storagePath, setStoragePath] = useState<string | null>(null);
+
+  // Auto-lock after 5 minutes of inactivity
+  const lockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const AUTO_LOCK_MS = 5 * 60 * 1000;
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const resetTimer = () => {
+      if (lockTimeoutRef.current) clearTimeout(lockTimeoutRef.current);
+      lockTimeoutRef.current = setTimeout(() => {
+        clearEncryptionKey();
+        setIsAuthenticated(false);
+        toast('Locked due to inactivity');
+      }, AUTO_LOCK_MS);
+    };
+
+    const events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }));
+    resetTimer();
+
+    return () => {
+      if (lockTimeoutRef.current) clearTimeout(lockTimeoutRef.current);
+      events.forEach(e => window.removeEventListener(e, resetTimer));
+    };
+  }, [isAuthenticated]);
 
   if (!isAuthenticated) {
     return <PinScreen onUnlock={(hash, p) => { setIsAuthenticated(true); setStoragePath(p); }} />;

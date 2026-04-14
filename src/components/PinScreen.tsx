@@ -112,6 +112,29 @@ export function PinScreen({ onUnlock }: PinScreenProps) {
               className="text-center text-2xl tracking-[0.5em] font-mono h-14"
               autoFocus
             />
+            {isSetup && pin.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex gap-1">
+                  {[1, 2, 3].map(i => (
+                    <div
+                      key={i}
+                      className={`h-1.5 flex-1 rounded-full transition-colors ${
+                        pin.length >= i * 2
+                          ? pin.length >= 6
+                            ? 'bg-green-500'
+                            : pin.length >= 4
+                            ? 'bg-yellow-500'
+                            : 'bg-red-500'
+                          : 'bg-muted'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  {pin.length < 4 ? 'Too short (min 4)' : pin.length < 6 ? 'Okay — 6+ digits recommended' : 'Strong PIN'}
+                </p>
+              </div>
+            )}
           </div>
 
           {isElectron && isSetup && (

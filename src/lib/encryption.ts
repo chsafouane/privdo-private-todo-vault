@@ -1,15 +1,38 @@
 import CryptoJS from 'crypto-js';
 
+const ITERATIONS = 600000;
+const KEY_SIZE = 128 / 32;
+
 let encryptionKey: string | null = null;
+let legacyKey: string | null = null;
+
+function getSalt(): string {
+  let salt = localStorage.getItem('encryption-salt');
+  if (!salt) {
+    salt = CryptoJS.lib.WordArray.random(16).toString();
+    localStorage.setItem('encryption-salt', salt);
+  }
+  return salt;
+}
+
+function deriveKey(pin: string, salt: string): string {
+  const saltWords = CryptoJS.enc.Hex.parse(salt);
+  return CryptoJS.PBKDF2(pin, saltWords, { keySize: KEY_SIZE, iterations: ITERATIONS }).toString();
+}
+
+function deriveLegacyKey(pin: string): string {
+  const salt = CryptoJS.enc.Utf8.parse('local-todo-manager-salt');
+  return CryptoJS.PBKDF2(pin, salt, { keySize: KEY_SIZE, iterations: 1000 }).toString();
+}
 
 export function setEncryptionKeyFromPin(pin: string) {
-  // Use a simple static salt to derive a more complex key from the PIN
-  const salt = CryptoJS.enc.Utf8.parse('local-todo-manager-salt');
-  const key128Bits = CryptoJS.PBKDF2(pin, salt, {
-    keySize: 128 / 32,
-    iterations: 1000
-  });
-  encryptionKey = key128Bits.toString();
+  // Check if this user had data before the salt migration
+  const hadSaltBefore = !!localStorage.getItem('encryption-salt');
+  encryptionKey = deriveKey(pin, getSalt());
+  // If no salt existed before this call, user may have legacy-encrypted data
+  if (!hadSaltBefore) {
+    legacyKey = deriveLegacyKey(pin);
+  }
 }
 
 export function isKeySet(): boolean {
@@ -18,6 +41,7 @@ export function isKeySet(): boolean {
 
 export function clearEncryptionKey() {
   encryptionKey = null;
+  legacyKey = null;
 }
 
 export function hashPin(pin: string): string {
@@ -25,11 +49,12 @@ export function hashPin(pin: string): string {
 }
 
 export function encryptDataWithPin(data: any, pin: string): string {
-  const salt = CryptoJS.enc.Utf8.parse('local-todo-manager-salt');
-  const tempKey = CryptoJS.PBKDF2(pin, salt, { keySize: 128 / 32, iterations: 1000 }).toString();
+  const exportSalt = CryptoJS.lib.WordArray.random(16).toString();
+  const tempKey = deriveKey(pin, exportSalt);
   try {
     const jsonStr = JSON.stringify(data);
-    return CryptoJS.AES.encrypt(jsonStr, tempKey).toString();
+    const encrypted = CryptoJS.AES.encrypt(jsonStr, tempKey).toString();
+    return JSON.stringify({ salt: exportSalt, data: encrypted });
   } catch (error) {
     console.error('Encryption failing', error);
     return '';
@@ -37,11 +62,25 @@ export function encryptDataWithPin(data: any, pin: string): string {
 }
 
 export function decryptDataWithPin(cipherText: string, pin: string): any {
-  const salt = CryptoJS.enc.Utf8.parse('local-todo-manager-salt');
-  const tempKey = CryptoJS.PBKDF2(pin, salt, { keySize: 128 / 32, iterations: 1000 }).toString();
   if (!cipherText) return null;
   try {
-    const bytes = CryptoJS.AES.decrypt(cipherText, tempKey);
+    let salt: string;
+    let encData: string;
+    try {
+      const parsed = JSON.parse(cipherText);
+      salt = parsed.salt;
+      encData = parsed.data;
+    } catch {
+      // Legacy format without salt
+      const legacySalt = CryptoJS.enc.Utf8.parse('local-todo-manager-salt');
+      const tempKey = CryptoJS.PBKDF2(pin, legacySalt, { keySize: KEY_SIZE, iterations: 1000 }).toString();
+      const bytes = CryptoJS.AES.decrypt(cipherText, tempKey);
+      const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+      if (!decryptedString) return null;
+      return JSON.parse(decryptedString);
+    }
+    const tempKey = deriveKey(pin, salt);
+    const bytes = CryptoJS.AES.decrypt(encData, tempKey);
     const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
     if (!decryptedString) return null;
     return JSON.parse(decryptedString);
@@ -68,10 +107,17 @@ export function decryptData(cipherText: string): any {
   try {
     const bytes = CryptoJS.AES.decrypt(cipherText, encryptionKey);
     const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
-    if (!decryptedString) return null;
-    return JSON.parse(decryptedString);
-  } catch (error) {
-    console.error('Decryption failing', error);
-    return null; // Indicates wrong PIN or corrupted data
+    if (decryptedString) return JSON.parse(decryptedString);
+  } catch { /* fall through to legacy */ }
+  
+  // Try legacy key for backward compatibility
+  if (legacyKey) {
+    try {
+      const bytes = CryptoJS.AES.decrypt(cipherText, legacyKey);
+      const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+      if (decryptedString) return JSON.parse(decryptedString);
+    } catch { /* ignore */ }
   }
+
+  return null;
 }
