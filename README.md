@@ -1,139 +1,137 @@
 # Privdo
 
-A simple, private, and secure todo list application that encrypts your tasks locally on your device. Designed with privacy in mind—no cloud storage, no account required, and fully offline capable.
+A private, encrypted todo list that lives entirely on your device. No cloud, no accounts, no tracking — just your tasks, encrypted with AES-256 and protected by a PIN.
+
+Available as a **web app**, **PWA**, **macOS desktop app**, **Chrome/Brave extension**, and **iOS/Android app**.
 
 ## Features
 
-- **🔒 Local Encryption:** All tasks are encrypted using AES-256 (`crypto-js`) before being stored locally on your device.
-- **📱 Installable App (PWA):** Works seamlessly as a standalone application on macOS, iOS, Android, and Windows.
-- **⚡ Offline First:** Everything is stored locally via `localforage`. No internet connection needed.
-- **🎨 Beautiful UI:** Built with React, TailwindCSS, and Framer Motion for a smooth user experience.
+- **Local Encryption** — All tasks encrypted with AES-256 (PBKDF2 key derivation, 600k iterations) before storage. Your PIN never leaves your device.
+- **Multiple Lists** — Organize tasks into named lists with easy switching.
+- **Deadlines & Notifications** — Set due dates and get desktop notifications when tasks are overdue.
+- **Search & Sort** — Filter tasks by text, sort by date, deadline, or alphabetically.
+- **Undo Delete** — 5-second undo window after deleting a task.
+- **Dark / Light Mode** — Follows your system preference or set manually.
+- **Export / Import** — PIN-encrypted backups you can move between devices.
+- **Offline First** — No internet connection needed. Ever.
+- **Cross-Platform** — Runs on macOS, Windows, Linux, iOS, Android, and any modern browser.
 
-## How to Use
+## Security
 
-1. **Add a Task:** Simply type your task in the input field and hit "Add" or press Enter.
-2. **Complete a Task:** Click the checkbox next to any active task to mark it as complete.
-3. **Delete a Task:** Click the trash icon next to a task to permanently remove it.
-4. *(All data is automatically encrypted and saved seamlessly as you interact with the app).*
-
----
-
-## Quick Start (Development)
-
-```bash
-# Install dependencies
-npm install
-
-# Start the development server
-npm run dev
-
-# Build for production (web)
-npm run build
-```
-
----
-
-## Building for All Platforms
-
-This app can be distributed as a **PWA** (web), a **macOS desktop app** (Electron), and a **native iOS / Android app** (Capacitor).
-
-### 1. PWA — Web, iPhone & Android (Add to Home Screen)
-
-The simplest way to use the app on any device. Build the web app and host it on any static server (Vercel, Netlify, GitHub Pages, or even `npx serve dist`).
-
-```bash
-npm run build
-```
-
-The production files are output to `dist/`. Deploy this folder to your hosting provider.
-
-**Install on your device:**
-
-| Platform | Steps |
+| Property | Detail |
 |---|---|
-| **iPhone / iPad** | Open the URL in **Safari** → tap **Share** → **Add to Home Screen** → **Add** |
-| **Android** | Open the URL in **Chrome** → tap **⋮ Menu** → **Install app** |
-| **macOS / Windows / Linux** | Open in Chrome/Edge → click the **Install** icon in the address bar |
+| **Cipher** | AES-256 via CryptoJS |
+| **Key Derivation** | PBKDF2, 600,000 iterations, 16-byte random salt |
+| **PIN Storage** | Only a SHA-256 hash is stored — never the PIN itself |
+| **Data Location** | Browser IndexedDB (web/PWA), local filesystem (Electron), or localStorage (extension) |
+| **Network** | Zero network calls. All data stays on-device. |
 
-### 2. macOS Desktop App (.dmg) — Electron
+See [SECURITY.md](SECURITY.md) for more details.
 
-Build a native macOS `.dmg` installer that can be dragged into your Applications folder.
+---
 
-**Prerequisites:**
-- macOS (Electron builds are platform-specific)
-- Node.js 18+
+## Quick Start
 
 ```bash
-# Development mode (live reload)
+npm install
+npm run dev
+```
+
+---
+
+## Platforms & Build Instructions
+
+### 1. Web App (PWA)
+
+Build and host on any static server. Installable on any device via the browser.
+
+```bash
+npm run build
+```
+
+Output: `dist/` — deploy to Vercel, Netlify, GitHub Pages, or serve locally with `npx serve dist`.
+
+| Platform | Install Steps |
+|---|---|
+| **iPhone / iPad** | Safari → Share → Add to Home Screen |
+| **Android** | Chrome → ⋮ Menu → Install app |
+| **Desktop** | Chrome/Edge → Install icon in address bar |
+
+### 2. macOS Desktop (.dmg) — Electron
+
+```bash
+# Development (live reload)
 npm run electron:dev
 
-# Build the .dmg installer
+# Build .dmg installer
 npm run electron:build
 ```
 
-The `.dmg` file will be in the `release/` folder. Double-click to mount and drag the app into Applications.
+The `.dmg` is output to `release/`. Drag to Applications to install.
 
-### 3. iOS App (.ipa) — Capacitor + Xcode
+**Requires:** macOS, Node.js 18+
 
-Build a native iOS app that can be installed on your iPhone/iPad or submitted to the App Store.
+### 3. Chrome / Brave Extension
 
-**Prerequisites:**
-- macOS with **Xcode** installed (free from the Mac App Store)
-- An Apple Developer account (free for personal device testing, paid for App Store)
-- CocoaPods: `sudo gem install cocoapods`
+The app can run as a browser extension popup (400×600).
 
-**Steps:**
+**Build the extension:**
+
+The Flutter version of Privdo ([`chsafouane/privdo-flutter`](https://github.com/chsafouane/privdo-flutter)) includes a build script that packages the web app as a Manifest V3 Chrome extension:
 
 ```bash
-# 1. Build the web app and sync to the iOS project
+# In the privdo-flutter repo:
+./build_chrome_extension.sh
+```
+
+This runs `flutter build web`, then assembles `chrome_extension/` with the correct manifest, CSP, and popup sizing.
+
+**Install:**
+
+1. Open `chrome://extensions` in Chrome or Brave
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked**
+4. Select the `chrome_extension/` directory
+
+The extension icon appears in your toolbar — click it to open Privdo.
+
+### 4. iOS App — Capacitor + Xcode
+
+```bash
 npm run ios:open
 ```
 
-This builds the web app, syncs it into the `ios/` Xcode project, and opens Xcode.
-
-```bash
-# Or do it step by step:
-npm run build          # Build the web app
-npx cap sync ios       # Copy web assets + update native plugins
-npx cap open ios       # Open the Xcode project
-```
+This builds the web app, syncs to the `ios/` project, and opens Xcode.
 
 **In Xcode:**
-1. Select your **Team** under *Signing & Capabilities* (your Apple Developer account).
-2. Connect your iPhone via USB or select a simulator.
-3. Click the **Run** (▶) button to build and install.
-4. To create an `.ipa` for distribution: *Product → Archive → Distribute App*.
+1. Select your Team under *Signing & Capabilities*
+2. Connect your iPhone or pick a simulator
+3. Click Run (▶)
 
-### 4. Android App (.apk / .aab) — Capacitor + Android Studio
+**Requires:** macOS, Xcode, Apple Developer account, CocoaPods (`sudo gem install cocoapods`)
 
-Build a native Android app that can be installed directly or submitted to the Google Play Store.
-
-**Prerequisites:**
-- **Android Studio** installed ([download](https://developer.android.com/studio))
-- Android SDK (installed automatically with Android Studio)
-- Java 17+ (bundled with Android Studio)
-
-**Steps:**
+### 5. Android App — Capacitor + Android Studio
 
 ```bash
-# 1. Build the web app and sync to the Android project
 npm run android:open
 ```
 
-This builds the web app, syncs it into the `android/` Gradle project, and opens Android Studio.
-
-```bash
-# Or do it step by step:
-npm run build            # Build the web app
-npx cap sync android     # Copy web assets + update native plugins
-npx cap open android     # Open in Android Studio
-```
+This builds the web app, syncs to the `android/` project, and opens Android Studio.
 
 **In Android Studio:**
-1. Wait for Gradle sync to finish.
-2. Connect your Android phone via USB (enable *USB Debugging*) or select an emulator.
-3. Click the **Run** (▶) button to build and install.
-4. To create a signed APK/AAB: *Build → Generate Signed Bundle / APK…*
+1. Wait for Gradle sync
+2. Connect your device (USB Debugging enabled) or pick an emulator
+3. Click Run (▶)
+
+**Requires:** Android Studio, Java 17+
+
+### 6. Flutter Version (macOS native + Web + Extension)
+
+A native Flutter port is available at [`chsafouane/privdo-flutter`](https://github.com/chsafouane/privdo-flutter). It shares the same encryption format and supports:
+
+- **macOS** — native desktop app via `flutter build macos`
+- **Web** — `flutter build web --release`, serve the `build/web/` output
+- **Chrome Extension** — `./build_chrome_extension.sh` (see section 3 above)
 
 ---
 
@@ -144,13 +142,26 @@ npx cap open android     # Open in Android Studio
 | `npm run dev` | Start Vite dev server |
 | `npm run build` | Build web app to `dist/` |
 | `npm run preview` | Preview the production build locally |
-| `npm run electron:dev` | Run Electron in development mode |
+| `npm run electron:dev` | Run Electron in dev mode with hot reload |
 | `npm run electron:build` | Build macOS `.dmg` installer |
 | `npm run cap:sync` | Build web + sync to iOS & Android |
 | `npm run ios:open` | Build, sync, and open Xcode |
 | `npm run android:open` | Build, sync, and open Android Studio |
 
 ---
+
+## Tech Stack
+
+| | |
+|---|---|
+| **Frontend** | React 19, TypeScript, TailwindCSS, Framer Motion |
+| **UI** | Radix UI primitives, Phosphor Icons |
+| **Build** | Vite + PWA plugin |
+| **Storage** | Localforage (IndexedDB) for web, filesystem for Electron |
+| **Crypto** | CryptoJS (AES-256, PBKDF2) |
+| **Desktop** | Electron (macOS .dmg) |
+| **Mobile** | Capacitor (iOS + Android) |
+| **Flutter** | Dart, Riverpod, PointyCastle — same encryption, native performance |
 
 ## Project Structure
 
