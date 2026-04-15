@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, X, CloudCheck, DotsSixVertical } from '@phosphor-icons/react'
+import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, X, CloudCheck, CaretRight, List } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useEncryptedStorage } from '@/lib/useEncryptedTasks'
 import { encryptDataWithPin, decryptDataWithPin, clearEncryptionKey } from '@/lib/encryption'
-import { Task, isValidTaskArray, ensureSortOrder } from '@/types'
+import { Task, TaskList, Vault, isValidTaskArray, isValidVault, ensureSortOrder, DEFAULT_VAULT } from '@/types'
 import { PinScreen } from '@/components/PinScreen'
 import { syncWidgetData } from '@/lib/widgetSync'
 import { useTaskManager } from '@/hooks/useTaskManager'
@@ -19,10 +19,131 @@ import { SyncSetup } from '@/components/SyncSetup'
 import { SyncSettings } from '@/components/SyncSettings'
 import { SyncStatusIcon } from '@/components/SyncStatusIcon'
 import { useSyncEngine } from '@/hooks/useSyncEngine'
+import { ListSelector } from '@/components/ListSelector'
 
-function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: string | null; databaseName: string; loadedTasks?: Task[] | null }) {
-  const [tasks, setTasks, isReady] = useEncryptedStorage<Task[]>('tasks', [], storagePath)
+function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; loadedTasks?: Task[] | null }) {
+  const [vault, setVault, isVaultReady] = useEncryptedStorage<Vault>('vault', DEFAULT_VAULT, storagePath)
+  const [legacyTasks] = useEncryptedStorage<Task[]>('tasks', [], storagePath)
   const isLoadedFile = !!loadedTasks
+
+  const [activeListId, setActiveListId] = useState<string | null>(() => localStorage.getItem('lastListId'))
+  const [listSelectorOpen, setListSelectorOpen] = useState(false)
+
+  // --- Migrate legacy single-list data into vault ---
+  useEffect(() => {
+    if (!isVaultReady || !vault) return
+    if (vault.lists.length > 0) return // already has lists
+    if (legacyTasks && legacyTasks.length > 0) {
+      const listId = crypto.randomUUID()
+      const now = Date.now()
+      setVault({
+        lists: [{ id: listId, name: 'My Tasks', createdAt: now, updatedAt: now, sortOrder: 1 }],
+        tasks: { [listId]: ensureSortOrder(legacyTasks) },
+      })
+      setActiveListId(listId)
+      localStorage.setItem('lastListId', listId)
+    } else {
+      // Fresh install — create default list
+      const listId = crypto.randomUUID()
+      const now = Date.now()
+      setVault({
+        lists: [{ id: listId, name: 'My Tasks', createdAt: now, updatedAt: now, sortOrder: 1 }],
+        tasks: { [listId]: [] },
+      })
+      setActiveListId(listId)
+      localStorage.setItem('lastListId', listId)
+    }
+  }, [isVaultReady]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- Handle loaded file ---
+  useEffect(() => {
+    if (loadedTasks && loadedTasks.length > 0 && activeListId && vault) {
+      setVault(v => {
+        const cur = v || DEFAULT_VAULT
+        return {
+          ...cur,
+          tasks: { ...cur.tasks, [activeListId]: loadedTasks },
+        }
+      })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- Resolve active list ---
+  const liveLists = (vault?.lists || []).filter(l => !l.deletedAt)
+  useEffect(() => {
+    if (!vault || liveLists.length === 0) return
+    if (!activeListId || !liveLists.find(l => l.id === activeListId)) {
+      const fallback = liveLists[0].id
+      setActiveListId(fallback)
+      localStorage.setItem('lastListId', fallback)
+    }
+  }, [vault, activeListId, liveLists])
+
+  const activeList = liveLists.find(l => l.id === activeListId)
+  const tasks = vault?.tasks[activeListId || ''] || []
+
+  const setTasks = useCallback((updater: Task[] | ((prev: Task[] | undefined) => Task[])) => {
+    setVault(v => {
+      const cur = v || DEFAULT_VAULT
+      if (!activeListId) return cur
+      const current = cur.tasks[activeListId] || []
+      const next = typeof updater === 'function' ? updater(current) : updater
+      return { ...cur, tasks: { ...cur.tasks, [activeListId]: next } }
+    })
+  }, [activeListId, setVault])
+
+  // --- List CRUD ---
+  const createList = useCallback((name: string) => {
+    const now = Date.now()
+    const maxOrder = (vault?.lists || []).reduce((max, l) => Math.max(max, l.sortOrder ?? 0), 0)
+    const listId = crypto.randomUUID()
+    const newList: TaskList = { id: listId, name, createdAt: now, updatedAt: now, sortOrder: maxOrder + 1 }
+    setVault(v => {
+      const cur = v || DEFAULT_VAULT
+      return {
+        ...cur,
+        lists: [...cur.lists, newList],
+        tasks: { ...cur.tasks, [listId]: [] },
+      }
+    })
+    setActiveListId(listId)
+    localStorage.setItem('lastListId', listId)
+    toast.success('List created')
+  }, [vault, setVault])
+
+  const renameList = useCallback((listId: string, name: string) => {
+    setVault(v => {
+      const cur = v || DEFAULT_VAULT
+      return {
+        ...cur,
+        lists: cur.lists.map(l => l.id === listId ? { ...l, name, updatedAt: Date.now() } : l),
+      }
+    })
+  }, [setVault])
+
+  const deleteList = useCallback((listId: string) => {
+    const now = Date.now()
+    setVault(v => {
+      const cur = v || DEFAULT_VAULT
+      return {
+        ...cur,
+        lists: cur.lists.map(l => l.id === listId ? { ...l, deletedAt: now, updatedAt: now } : l),
+      }
+    })
+    if (activeListId === listId) {
+      const remaining = liveLists.filter(l => l.id !== listId)
+      if (remaining.length > 0) {
+        setActiveListId(remaining[0].id)
+        localStorage.setItem('lastListId', remaining[0].id)
+      }
+    }
+    toast('List deleted')
+  }, [activeListId, liveLists, setVault])
+
+  const selectList = useCallback((listId: string) => {
+    setActiveListId(listId)
+    localStorage.setItem('lastListId', listId)
+  }, [])
 
   // Search
   const [searchQuery, setSearchQuery] = useState('')
@@ -40,7 +161,7 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     startEdit, saveEdit, cancelEdit,
   } = useTaskManager({ tasks, setTasks })
 
-  // Sync engine
+  // Sync engine — operates on the full vault
   const {
     syncConfig,
     syncState,
@@ -48,7 +169,7 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     setupPassphraseSync,
     setupEmailSync,
     disconnect: disconnectSync,
-  } = useSyncEngine(tasks, setTasks, isReady)
+  } = useSyncEngine(vault, setVault, isVaultReady)
 
   const [syncSetupOpen, setSyncSetupOpen] = useState(false)
   const [syncSettingsOpen, setSyncSettingsOpen] = useState(false)
@@ -57,13 +178,6 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     addTaskBase()
     setAddOpen(false)
   }
-
-  // If tasks were loaded from an external file, use those instead
-  useEffect(() => {
-    if (loadedTasks && loadedTasks.length > 0) {
-      setTasks(loadedTasks);
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [pinDialogMode, setPinDialogMode] = useState<'export' | 'import' | null>(null)
   const [pinDialogValue, setPinDialogValue] = useState('')
@@ -140,7 +254,7 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     if (!tasks || tasks.length === 0) return
     const migrated = ensureSortOrder(tasks)
     if (migrated !== tasks) setTasks(migrated)
-  }, [isReady]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isVaultReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Prune tombstones older than 30 days on mount
   useEffect(() => {
@@ -150,7 +264,7 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     if (hasOldTombstones) {
       setTasks(current => (current || []).filter(t => !t.deletedAt || t.deletedAt >= thirtyDaysAgo))
     }
-  }, [isReady]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isVaultReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clean up undo timeout on unmount
   useEffect(() => {
@@ -190,8 +304,8 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
   }, [setTasks])
 
   const triggerExport = () => {
-    if (!tasks || tasks.length === 0) {
-      toast.error('No tasks to export')
+    if (!vault || vault.lists.length === 0) {
+      toast.error('No data to export')
       return
     }
     setPinDialogValue('')
@@ -199,10 +313,10 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
   }
 
   const handleExportConfirm = async () => {
-    if (!tasks || !pinDialogValue.trim()) return
-    const encrypted = await encryptDataWithPin(tasks, pinDialogValue)
+    if (!vault || !pinDialogValue.trim()) return
+    const encrypted = await encryptDataWithPin(vault, pinDialogValue)
     const exportObject = {
-      version: 1,
+      version: 2,
       encryptedData: encrypted
     }
     const dataStr = JSON.stringify(exportObject, null, 2)
@@ -224,10 +338,17 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     
     // Handle encrypted backups
     if (fileContent && fileContent.encryptedData) {
-      const decryptedTasks = await decryptDataWithPin(fileContent.encryptedData, pinDialogValue)
-      if (isValidTaskArray(decryptedTasks)) {
-        setTasks(decryptedTasks)
-        toast.success('Secure database imported successfully')
+      const decrypted = await decryptDataWithPin(fileContent.encryptedData, pinDialogValue)
+      if (isValidVault(decrypted)) {
+        setVault(decrypted)
+        toast.success('Vault imported successfully')
+        setPinDialogMode(null)
+        setPinDialogValue('')
+        setPendingImportContent(null)
+      } else if (isValidTaskArray(decrypted)) {
+        // Legacy Task[] backup — import into current list
+        setTasks(decrypted)
+        toast.success('Tasks imported into current list')
         setPinDialogMode(null)
         setPinDialogValue('')
         setPendingImportContent(null)
@@ -236,14 +357,20 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
       }
     } 
     // Fallback for unencrypted
-    else if (isValidTaskArray(fileContent)) {
+    else if (isValidVault(fileContent)) {
+      setVault(fileContent)
+      toast.success('Vault imported successfully')
+      setPinDialogMode(null)
+      setPinDialogValue('')
+      setPendingImportContent(null)
+    } else if (isValidTaskArray(fileContent)) {
       setTasks(fileContent)
-      toast.success('Unencrypted database imported successfully')
+      toast.success('Tasks imported into current list')
       setPinDialogMode(null)
       setPinDialogValue('')
       setPendingImportContent(null)
     } else {
-      toast.error('Invalid database format')
+      toast.error('Invalid backup format')
       setPinDialogMode(null)
       setPinDialogValue('')
       setPendingImportContent(null)
@@ -262,11 +389,14 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
           setPendingImportContent(fileContent)
           setPinDialogValue('')
           setPinDialogMode('import')
+        } else if (isValidVault(fileContent)) {
+          setVault(fileContent)
+          toast.success('Vault imported successfully')
         } else if (isValidTaskArray(fileContent)) {
           setTasks(fileContent)
-          toast.success('Unencrypted database imported successfully')
+          toast.success('Tasks imported into current list')
         } else {
-          toast.error('Invalid database format')
+          toast.error('Invalid backup format')
         }
       } catch (err) {
         toast.error('Failed to parse database file')
@@ -299,7 +429,14 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
             <div className="flex items-center justify-between mb-2">
               <div className="flex flex-col gap-0.5 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-lg font-bold text-foreground tracking-tight truncate">{databaseName}</h1>
+                  <button
+                    onClick={() => setListSelectorOpen(true)}
+                    className="flex items-center gap-1 text-lg font-bold text-foreground tracking-tight truncate hover:text-accent transition-colors"
+                    title="Switch list"
+                  >
+                    {activeList?.name || 'My Tasks'}
+                    <CaretRight size={14} className="text-muted-foreground flex-shrink-0" />
+                  </button>
                   {activeTasks.length > 0 && (
                     <Badge variant="secondary" className="text-xs flex-shrink-0">
                       {activeTasks.length}
@@ -551,6 +688,18 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
         }}
         onSetup={() => setSyncSetupOpen(true)}
       />
+
+      <ListSelector
+        open={listSelectorOpen}
+        onClose={() => setListSelectorOpen(false)}
+        lists={vault?.lists || []}
+        tasks={vault?.tasks || {}}
+        activeListId={activeListId}
+        onSelect={selectList}
+        onCreate={createList}
+        onRename={renameList}
+        onDelete={deleteList}
+      />
     </div>
   )
 }
@@ -558,7 +707,6 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [storagePath, setStoragePath] = useState<string | null>(null);
-  const [databaseName, setDatabaseName] = useState('My Tasks');
   const [loadedTasks, setLoadedTasks] = useState<Task[] | null>(null);
 
   // Auto-lock after 5 minutes of inactivity
@@ -589,10 +737,6 @@ export default function App() {
   }, [isAuthenticated]);
 
   const handleLoadFile = (tasks: Task[], fileName: string) => {
-    const name = fileName
-      .replace(/[-_]/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase());
-    setDatabaseName(name);
     setLoadedTasks(tasks);
     setIsAuthenticated(true);
   };
@@ -603,7 +747,6 @@ export default function App() {
         onUnlock={(hash, p) => {
           setIsAuthenticated(true);
           setStoragePath(p);
-          setDatabaseName('My Tasks');
           setLoadedTasks(null);
         }}
         onLoadFile={handleLoadFile}
@@ -611,5 +754,5 @@ export default function App() {
     );
   }
 
-  return <MainApp storagePath={storagePath} databaseName={databaseName} loadedTasks={loadedTasks} />;
+  return <VaultApp storagePath={storagePath} loadedTasks={loadedTasks} />;
 }

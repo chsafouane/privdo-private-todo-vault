@@ -6,9 +6,9 @@ import {
   encryptForSync,
   decryptFromSync,
 } from '@/lib/syncEncryption';
-import { mergeTasks, hasChanges } from '@/lib/syncMerge';
-import type { Task } from '@/types';
-import { isValidTaskArray } from '@/types';
+import { mergeVaults, hasVaultChanges } from '@/lib/syncMerge';
+import type { Vault } from '@/types';
+import { isValidVault, isValidTaskArray, DEFAULT_VAULT } from '@/types';
 
 export type SyncAuthMode = 'passphrase' | 'email';
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
@@ -116,8 +116,8 @@ async function cloudPush(
 // ─── Sync Engine Hook ────────────────────────────────────────────
 
 export function useSyncEngine(
-  tasks: Task[] | null | undefined,
-  setTasks: (updater: (prev: Task[] | undefined) => Task[]) => void,
+  vault: Vault | null | undefined,
+  setVault: (updater: (prev: Vault | undefined) => Vault) => void,
   isReady: boolean
 ) {
   const [syncConfig, setSyncConfigState] = useState<SyncConfig | null>(loadSyncConfig);
@@ -147,7 +147,7 @@ export function useSyncEngine(
   // ─── Core Sync Logic ──────────────────────────────
 
   const performSync = useCallback(async () => {
-    if (!syncConfig?.enabled || !tasks || !isReady) return;
+    if (!syncConfig?.enabled || !vault || !isReady) return;
     if (isSyncing.current) return;
     if (!navigator.onLine) {
       updateSyncState({ status: 'offline' });
@@ -163,40 +163,22 @@ export function useSyncEngine(
 
       if (remote.exists && remote.encryptedData) {
         // 2. Decrypt remote
-        const remoteTasks = decryptFromSync(remote.encryptedData, syncConfig.syncKey);
-        if (remoteTasks && isValidTaskArray(remoteTasks)) {
-          // 3. Merge
-          const merged = mergeTasks(tasks, remoteTasks);
-          const localChanged = hasChanges(tasks, merged);
+        const remoteData = decryptFromSync(remote.encryptedData, syncConfig.syncKey);
 
-          if (localChanged) {
-            setTasks(() => merged);
-          }
-
-          // 4. Push merged result (if we had local changes)
-          const remoteChanged = hasChanges(remoteTasks, merged);
-          if (remoteChanged || !remote.exists) {
-            const encrypted = encryptForSync(merged, syncConfig.syncKey);
-            const result = await cloudPush(syncConfig, encrypted, remote.version ?? 0);
-            lastPushedVersion.current = result.version;
-            updateSyncState({
-              status: 'idle',
-              lastSyncAt: Date.now(),
-              lastSyncDeviceId: syncConfig.deviceId,
-              version: result.version,
-            });
-          } else {
-            lastPushedVersion.current = remote.version ?? 0;
-            updateSyncState({
-              status: 'idle',
-              lastSyncAt: Date.now(),
-              lastSyncDeviceId: remote.deviceId ?? null,
-              version: remote.version ?? 0,
-            });
-          }
+        // Support both old Task[] and new Vault formats
+        let remoteVault: Vault;
+        if (isValidVault(remoteData)) {
+          remoteVault = remoteData;
+        } else if (isValidTaskArray(remoteData)) {
+          // Legacy: wrap Task[] in a vault
+          const listId = vault.lists[0]?.id || crypto.randomUUID();
+          remoteVault = {
+            lists: vault.lists.length > 0 ? vault.lists : [{ id: listId, name: 'My Tasks', createdAt: Date.now(), updatedAt: Date.now(), sortOrder: 1 }],
+            tasks: { [listId]: remoteData },
+          };
         } else {
-          // Decryption failed or invalid data — push local as truth
-          const encrypted = encryptForSync(tasks, syncConfig.syncKey);
+          // Decryption failed — push local as truth
+          const encrypted = encryptForSync(vault, syncConfig.syncKey);
           const result = await cloudPush(syncConfig, encrypted, remote.version ?? 0);
           lastPushedVersion.current = result.version;
           updateSyncState({
@@ -205,10 +187,42 @@ export function useSyncEngine(
             lastSyncDeviceId: syncConfig.deviceId,
             version: result.version,
           });
+          isSyncing.current = false;
+          return;
+        }
+
+        // 3. Merge
+        const merged = mergeVaults(vault, remoteVault);
+        const localChanged = hasVaultChanges(vault, merged);
+
+        if (localChanged) {
+          setVault(() => merged);
+        }
+
+        // 4. Push merged result (if we had local changes)
+        const remoteChanged = hasVaultChanges(remoteVault, merged);
+        if (remoteChanged || !remote.exists) {
+          const encrypted = encryptForSync(merged, syncConfig.syncKey);
+          const result = await cloudPush(syncConfig, encrypted, remote.version ?? 0);
+          lastPushedVersion.current = result.version;
+          updateSyncState({
+            status: 'idle',
+            lastSyncAt: Date.now(),
+            lastSyncDeviceId: syncConfig.deviceId,
+            version: result.version,
+          });
+        } else {
+          lastPushedVersion.current = remote.version ?? 0;
+          updateSyncState({
+            status: 'idle',
+            lastSyncAt: Date.now(),
+            lastSyncDeviceId: remote.deviceId ?? null,
+            version: remote.version ?? 0,
+          });
         }
       } else {
         // No remote data — push local
-        const encrypted = encryptForSync(tasks, syncConfig.syncKey);
+        const encrypted = encryptForSync(vault, syncConfig.syncKey);
         const result = await cloudPush(syncConfig, encrypted, 0);
         lastPushedVersion.current = result.version;
         updateSyncState({
@@ -237,24 +251,24 @@ export function useSyncEngine(
     } finally {
       isSyncing.current = false;
     }
-  }, [syncConfig, tasks, isReady, setTasks, updateSyncState]);
+  }, [syncConfig, vault, isReady, setVault, updateSyncState]);
 
   // ─── Auto-sync on task changes (debounced) ─────────
 
-  const prevTasksRef = useRef<Task[] | null>(null);
+  const prevVaultRef = useRef<Vault | null>(null);
 
   useEffect(() => {
-    if (!syncConfig?.enabled || !isReady || !tasks) return;
+    if (!syncConfig?.enabled || !isReady || !vault) return;
 
     // Skip the initial load
-    if (prevTasksRef.current === null) {
-      prevTasksRef.current = tasks;
+    if (prevVaultRef.current === null) {
+      prevVaultRef.current = vault;
       return;
     }
 
-    // Only trigger if tasks actually changed
-    if (prevTasksRef.current === tasks) return;
-    prevTasksRef.current = tasks;
+    // Only trigger if vault actually changed
+    if (prevVaultRef.current === vault) return;
+    prevVaultRef.current = vault;
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -264,7 +278,7 @@ export function useSyncEngine(
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [tasks, syncConfig?.enabled, isReady, performSync]);
+  }, [vault, syncConfig?.enabled, isReady, performSync]);
 
   // ─── Periodic sync ────────────────────────────────
 
