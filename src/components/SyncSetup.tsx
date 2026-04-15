@@ -104,20 +104,20 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
             </DialogHeader>
             <div className="space-y-3 py-4">
               <Button variant="outline" className="w-full justify-start h-auto py-3 px-4" onClick={handleGenerate}>
-                <div className="text-left">
+                <div className="text-left whitespace-normal min-w-0">
                   <div className="font-medium">🔑 Passphrase — New Device</div>
                   <div className="text-xs text-muted-foreground mt-0.5">Generate a passphrase to start syncing. No email needed.</div>
                 </div>
               </Button>
               <Button variant="outline" className="w-full justify-start h-auto py-3 px-4" onClick={() => setStep('passphrase-join')}>
-                <div className="text-left">
+                <div className="text-left whitespace-normal min-w-0">
                   <div className="font-medium">🔑 Passphrase — Join Existing</div>
                   <div className="text-xs text-muted-foreground mt-0.5">Enter a passphrase from another device.</div>
                 </div>
               </Button>
               {isSupabaseConfigured() && (
                 <Button variant="outline" className="w-full justify-start h-auto py-3 px-4" onClick={() => setStep('email')}>
-                  <div className="text-left">
+                  <div className="text-left whitespace-normal min-w-0">
                     <div className="font-medium">📧 Email Account</div>
                     <div className="text-xs text-muted-foreground mt-0.5">Sign in or create an account. Easier to manage.</div>
                   </div>
