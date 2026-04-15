@@ -1,10 +1,12 @@
 import CryptoJS from 'crypto-js';
 
 const ITERATIONS = 600000;
-const KEY_SIZE = 128 / 32;
+const KEY_SIZE = 256 / 32;          // AES-256 (new standard)
+const LEGACY_KEY_SIZE = 128 / 32;   // AES-128 (old standard)
 
 let encryptionKey: string | null = null;
-let legacyKey: string | null = null;
+let migrationKey: string | null = null;  // 128-bit / 600k iter key for backward compat
+let legacyKey: string | null = null;     // 128-bit / 1000 iter key for very old data
 
 function getSalt(): string {
   let salt = localStorage.getItem('encryption-salt');
@@ -20,19 +22,26 @@ function deriveKey(pin: string, salt: string): string {
   return CryptoJS.PBKDF2(pin, saltWords, { keySize: KEY_SIZE, iterations: ITERATIONS }).toString();
 }
 
+function deriveMigrationKey(pin: string, salt: string): string {
+  const saltWords = CryptoJS.enc.Hex.parse(salt);
+  return CryptoJS.PBKDF2(pin, saltWords, { keySize: LEGACY_KEY_SIZE, iterations: ITERATIONS }).toString();
+}
+
+// Legacy key uses a hard-coded salt and only 1000 iterations (insecure).
+// Kept solely for migrating very old encrypted data to the current scheme.
 function deriveLegacyKey(pin: string): string {
   const salt = CryptoJS.enc.Utf8.parse('local-todo-manager-salt');
-  return CryptoJS.PBKDF2(pin, salt, { keySize: KEY_SIZE, iterations: 1000 }).toString();
+  return CryptoJS.PBKDF2(pin, salt, { keySize: LEGACY_KEY_SIZE, iterations: 1000 }).toString();
 }
 
 export function setEncryptionKeyFromPin(pin: string) {
-  // Check if this user had data before the salt migration
-  const hadSaltBefore = !!localStorage.getItem('encryption-salt');
-  encryptionKey = deriveKey(pin, getSalt());
-  // If no salt existed before this call, user may have legacy-encrypted data
-  if (!hadSaltBefore) {
-    legacyKey = deriveLegacyKey(pin);
-  }
+  const salt = getSalt();
+  encryptionKey = deriveKey(pin, salt);
+  // Migration key: old 128-bit key with current salt + iterations
+  migrationKey = deriveMigrationKey(pin, salt);
+  // Always derive legacy key so very old data (128-bit / 1000 iter) can be decrypted
+  // regardless of whether the user went through intermediate migration steps
+  legacyKey = deriveLegacyKey(pin);
 }
 
 export function isKeySet(): boolean {
@@ -41,10 +50,16 @@ export function isKeySet(): boolean {
 
 export function clearEncryptionKey() {
   encryptionKey = null;
+  migrationKey = null;
   legacyKey = null;
 }
 
 export function hashPin(pin: string): string {
+  const salt = getSalt();
+  return CryptoJS.PBKDF2(pin, CryptoJS.enc.Hex.parse(salt), { keySize: 8, iterations: ITERATIONS }).toString();
+}
+
+export function legacyHashPin(pin: string): string {
   return CryptoJS.SHA256(pin).toString();
 }
 
@@ -71,16 +86,26 @@ export function decryptDataWithPin(cipherText: string, pin: string): any {
       salt = parsed.salt;
       encData = parsed.data;
     } catch {
-      // Legacy format without salt
+      // Legacy format without salt — try 128-bit / 1000 iter key
       const legacySalt = CryptoJS.enc.Utf8.parse('local-todo-manager-salt');
-      const tempKey = CryptoJS.PBKDF2(pin, legacySalt, { keySize: KEY_SIZE, iterations: 1000 }).toString();
+      const tempKey = CryptoJS.PBKDF2(pin, legacySalt, { keySize: LEGACY_KEY_SIZE, iterations: 1000 }).toString();
       const bytes = CryptoJS.AES.decrypt(cipherText, tempKey);
       const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
       if (!decryptedString) return null;
       return JSON.parse(decryptedString);
     }
-    const tempKey = deriveKey(pin, salt);
-    const bytes = CryptoJS.AES.decrypt(encData, tempKey);
+
+    // Try new 256-bit key first
+    try {
+      const newKey = deriveKey(pin, salt);
+      const bytes = CryptoJS.AES.decrypt(encData, newKey);
+      const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+      if (decryptedString) return JSON.parse(decryptedString);
+    } catch { /* fall through */ }
+
+    // Try old 128-bit key with same salt + iterations
+    const oldKey = CryptoJS.PBKDF2(pin, CryptoJS.enc.Hex.parse(salt), { keySize: LEGACY_KEY_SIZE, iterations: ITERATIONS }).toString();
+    const bytes = CryptoJS.AES.decrypt(encData, oldKey);
     const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
     if (!decryptedString) return null;
     return JSON.parse(decryptedString);
@@ -104,13 +129,24 @@ export function encryptData(data: any): string {
 export function decryptData(cipherText: string): any {
   if (!encryptionKey) throw new Error('Encryption key not set');
   if (!cipherText) return null;
+
+  // Try current 256-bit key first
   try {
     const bytes = CryptoJS.AES.decrypt(cipherText, encryptionKey);
     const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
     if (decryptedString) return JSON.parse(decryptedString);
-  } catch { /* fall through to legacy */ }
-  
-  // Try legacy key for backward compatibility
+  } catch { /* fall through */ }
+
+  // Try migration key (128-bit / 600k iterations)
+  if (migrationKey) {
+    try {
+      const bytes = CryptoJS.AES.decrypt(cipherText, migrationKey);
+      const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+      if (decryptedString) return JSON.parse(decryptedString);
+    } catch { /* fall through */ }
+  }
+
+  // Try legacy key (128-bit / 1000 iterations)
   if (legacyKey) {
     try {
       const bytes = CryptoJS.AES.decrypt(cipherText, legacyKey);

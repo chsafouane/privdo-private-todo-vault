@@ -1,11 +1,13 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs/promises')
+const fsSync = require('fs')
 
 const isDev = process.env.NODE_ENV === 'development';
 
 const CONFIG_PATH = path.join(app.getPath('userData'), 'privdo-config.json');
 
+// Only set via the native select-directory dialog — never from the renderer directly
 let currentStoragePath = null;
 
 async function getConfig() {
@@ -26,12 +28,40 @@ function validateFilePath(filePath) {
   if (!currentStoragePath) {
     throw new Error('No storage path configured');
   }
-  const resolved = path.resolve(filePath);
-  const resolvedStorage = path.resolve(currentStoragePath);
+  const resolved = path.resolve(filePath).normalize('NFC');
+  const resolvedStorage = path.resolve(currentStoragePath).normalize('NFC');
   if (!resolved.startsWith(resolvedStorage + path.sep) && resolved !== resolvedStorage) {
     throw new Error('Access denied: path is outside the configured storage directory');
   }
-  return resolved;
+
+  // Resolve symlinks to prevent TOCTOU bypass
+  try {
+    const realPath = fsSync.realpathSync(resolved).normalize('NFC');
+    const realStorage = fsSync.realpathSync(resolvedStorage).normalize('NFC');
+    if (!realPath.startsWith(realStorage + path.sep) && realPath !== realStorage) {
+      throw new Error('Access denied: symlink target is outside storage directory');
+    }
+    return realPath;
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      // File doesn't exist yet (write-file creating new file) — validate parent
+      const parentDir = path.dirname(resolved);
+      try {
+        const realParent = fsSync.realpathSync(parentDir).normalize('NFC');
+        const realStorage = fsSync.realpathSync(resolvedStorage).normalize('NFC');
+        if (!realParent.startsWith(realStorage + path.sep) && realParent !== realStorage) {
+          throw new Error('Access denied: parent directory is outside storage');
+        }
+      } catch (parentErr) {
+        if (parentErr.code === 'ENOENT') {
+          throw new Error('Access denied: parent directory does not exist');
+        }
+        throw parentErr;
+      }
+      return resolved;
+    }
+    throw err;
+  }
 }
 
 function createWindow () {
@@ -62,10 +92,10 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('save-config', async (event, config) => {
-    await saveConfig(config);
-    if (config.storagePath !== undefined) {
-      currentStoragePath = config.storagePath;
-    }
+    // Never allow the renderer to set storagePath — only the native dialog can do that.
+    // A compromised renderer could otherwise point storagePath at /etc, ~/.ssh, etc.
+    const { storagePath: _ignored, ...safeConfig } = config;
+    await saveConfig(safeConfig);
     return true;
   });
 
@@ -74,7 +104,11 @@ app.whenReady().then(async () => {
       properties: ['openDirectory', 'createDirectory']
     });
     if (result.canceled) return null;
-    return result.filePaths[0];
+    const selected = result.filePaths[0];
+    // Only the native dialog can set the storage path
+    currentStoragePath = selected;
+    await saveConfig({ storagePath: selected });
+    return selected;
   });
 
   ipcMain.handle('read-file', async (event, filePath) => {

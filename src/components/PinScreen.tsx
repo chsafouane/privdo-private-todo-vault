@@ -3,7 +3,7 @@ import { LockKey, Keyhole, FolderOpen, FileArrowUp } from '@phosphor-icons/react
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { hashPin, setEncryptionKeyFromPin, decryptDataWithPin } from '@/lib/encryption';
+import { hashPin, legacyHashPin, setEncryptionKeyFromPin, decryptDataWithPin } from '@/lib/encryption';
 import { toast } from 'sonner';
 
 interface PinScreenProps {
@@ -70,7 +70,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
       setEncryptionKeyFromPin(pin);
       
       if (isElectron) {
-        await (window as any).electron.invoke('save-config', { pinHash: currentHash, storagePath });
+        await (window as any).electron.invoke('save-config', { pinHash: currentHash });
       } else {
         localStorage.setItem('web-auth-hash', currentHash);
       }
@@ -82,8 +82,21 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
         setEncryptionKeyFromPin(pin);
         onUnlock(currentHash, storagePath);
       } else {
-        toast.error('Incorrect PIN.');
-        setPin('');
+        // Try legacy SHA-256 hash for pre-migration users
+        const legacyHash = legacyHashPin(pin);
+        if (legacyHash === storedHash) {
+          setEncryptionKeyFromPin(pin);
+          // Migrate stored hash to PBKDF2
+          if (isElectron) {
+            await (window as any).electron.invoke('save-config', { pinHash: currentHash });
+          } else {
+            localStorage.setItem('web-auth-hash', currentHash);
+          }
+          onUnlock(currentHash, storagePath);
+        } else {
+          toast.error('Incorrect PIN.');
+          setPin('');
+        }
       }
     }
   };
