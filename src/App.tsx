@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash, LockKey, Clock, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown } from '@phosphor-icons/react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Plus, Trash, LockKey, Clock, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -17,8 +17,12 @@ interface Task {
   text: string
   completed: boolean
   createdAt: number
+  updatedAt: number
   deadline?: string
+  deletedAt?: number
 }
+
+type SortMode = 'created' | 'deadline' | 'alpha'
 
 function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: string | null; databaseName: string; loadedTasks?: Task[] | null }) {
   const [tasks, setTasks, isReady] = useEncryptedStorage<Task[]>('tasks', [], storagePath)
@@ -28,6 +32,18 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
   const [editText, setEditText] = useState('')
   const [editDeadline, setEditDeadline] = useState('')
   const isLoadedFile = !!loadedTasks
+
+  // Search & sort
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [sortMode, setSortMode] = useState<SortMode>('created')
+
+  // Undo delete
+  const [recentlyDeleted, setRecentlyDeleted] = useState<Task | null>(null)
+  const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Mobile FAB
+  const [addOpen, setAddOpen] = useState(false)
 
   // If tasks were loaded from an external file, use those instead
   useEffect(() => {
@@ -100,42 +116,127 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     return () => clearInterval(interval)
   }, [tasks])
 
-  const activeTasks = (tasks || []).filter(t => !t.completed)
-  const completedTasks = (tasks || []).filter(t => t.completed)
+  // Prune tombstones older than 30 days on mount
+  useEffect(() => {
+    if (!tasks || tasks.length === 0) return
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+    const hasOldTombstones = tasks.some(t => t.deletedAt && t.deletedAt < thirtyDaysAgo)
+    if (hasOldTombstones) {
+      setTasks(current => (current || []).filter(t => !t.deletedAt || t.deletedAt >= thirtyDaysAgo))
+    }
+  }, [isReady]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clean up undo timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current)
+    }
+  }, [])
+
+  const liveTasks = (tasks || []).filter(t => !t.deletedAt)
+
+  const filterBySearch = useCallback((list: Task[]) => {
+    if (!searchQuery.trim()) return list
+    const q = searchQuery.toLowerCase()
+    return list.filter(t => t.text.toLowerCase().includes(q))
+  }, [searchQuery])
+
+  const sortTasks = useCallback((list: Task[]) => {
+    const sorted = [...list]
+    switch (sortMode) {
+      case 'deadline':
+        return sorted.sort((a, b) => {
+          if (!a.deadline && !b.deadline) return b.createdAt - a.createdAt
+          if (!a.deadline) return 1
+          if (!b.deadline) return -1
+          return new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+        })
+      case 'alpha':
+        return sorted.sort((a, b) => a.text.localeCompare(b.text))
+      default:
+        return sorted.sort((a, b) => b.createdAt - a.createdAt)
+    }
+  }, [sortMode])
+
+  const activeTasks = sortTasks(filterBySearch(liveTasks.filter(t => !t.completed)))
+  const completedTasks = sortTasks(filterBySearch(liveTasks.filter(t => t.completed)))
 
   const addTask = () => {
     const trimmed = newTaskText.trim()
     if (!trimmed) return
 
+    const now = Date.now()
     const newTask: Task = {
-      id: Date.now().toString(),
+      id: now.toString(),
       text: trimmed,
       completed: false,
-      createdAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
       ...(newTaskDeadline ? { deadline: newTaskDeadline } : {})
     }
 
     setTasks(current => [...(current || []), newTask])
     setNewTaskText('')
     setNewTaskDeadline('')
+    setAddOpen(false)
     toast.success('Task added')
   }
 
   const toggleTask = (id: string) => {
     setTasks(current =>
       (current || []).map(task =>
-        task.id === id ? { ...task, completed: !task.completed } : task
+        task.id === id ? { ...task, completed: !task.completed, updatedAt: Date.now() } : task
       )
     )
   }
 
   const deleteTask = (id: string) => {
-    setTasks(current => (current || []).filter(task => task.id !== id))
-    toast.success('Task deleted')
+    const task = (tasks || []).find(t => t.id === id)
+    if (task) {
+      // Clear any previous undo timer
+      if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current)
+      setRecentlyDeleted(task)
+
+      // Soft delete
+      setTasks(current =>
+        (current || []).map(t =>
+          t.id === id ? { ...t, deletedAt: Date.now(), updatedAt: Date.now() } : t
+        )
+      )
+
+      // Auto-purge after 5s
+      undoTimeoutRef.current = setTimeout(() => {
+        setRecentlyDeleted(null)
+      }, 5000)
+
+      toast('Task deleted', {
+        action: {
+          label: 'Undo',
+          onClick: () => undoDelete(id),
+        },
+        duration: 5000,
+      })
+    }
+  }
+
+  const undoDelete = (id: string) => {
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current)
+    setTasks(current =>
+      (current || []).map(t =>
+        t.id === id ? { ...t, deletedAt: undefined, updatedAt: Date.now() } : t
+      )
+    )
+    setRecentlyDeleted(null)
+    toast.success('Task restored')
   }
 
   const clearCompleted = () => {
-    setTasks(current => (current || []).filter(task => !task.completed))
+    const now = Date.now()
+    setTasks(current =>
+      (current || []).map(task =>
+        task.completed && !task.deletedAt ? { ...task, deletedAt: now, updatedAt: now } : task
+      )
+    )
     toast.success('Cleared completed tasks')
   }
 
@@ -156,7 +257,7 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
 
     setTasks(current =>
       (current || []).map(task =>
-        task.id === editingId ? { ...task, text: trimmed, deadline: editDeadline || undefined } : task
+        task.id === editingId ? { ...task, text: trimmed, deadline: editDeadline || undefined, updatedAt: Date.now() } : task
       )
     )
     setEditingId(null)
@@ -169,6 +270,18 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     setEditText('')
     setEditDeadline('')
   }
+
+  const cycleSortMode = () => {
+    setSortMode(current => {
+      switch (current) {
+        case 'created': return 'deadline'
+        case 'deadline': return 'alpha'
+        case 'alpha': return 'created'
+      }
+    })
+  }
+
+  const sortLabel = sortMode === 'created' ? 'Newest' : sortMode === 'deadline' ? 'Deadline' : 'A-Z'
 
   const triggerExport = () => {
     if (!tasks || tasks.length === 0) {
