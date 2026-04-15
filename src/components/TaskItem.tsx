@@ -1,4 +1,4 @@
-import { Trash, Clock } from '@phosphor-icons/react'
+import { Trash, Clock, DotsSixVertical } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -18,6 +18,7 @@ export interface TaskItemProps {
   onEditDeadlineChange: (deadline: string) => void
   onSaveEdit: () => void
   onCancelEdit: () => void
+  dragControls?: boolean
 }
 
 export function TaskItem({
@@ -33,6 +34,7 @@ export function TaskItem({
   onEditDeadlineChange,
   onSaveEdit,
   onCancelEdit,
+  dragControls,
 }: TaskItemProps) {
   if (isCompleted) {
     return (
@@ -104,6 +106,11 @@ export function TaskItem({
         }}
         className="group flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/50 transition-colors touch-pan-y relative"
       >
+        {dragControls && (
+          <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground touch-none" data-drag-handle>
+            <DotsSixVertical size={16} weight="bold" />
+          </div>
+        )}
         <Checkbox
           id={`task-${task.id}`}
           checked={task.completed}

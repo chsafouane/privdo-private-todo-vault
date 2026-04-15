@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, Broadcast, CloudCheck } from '@phosphor-icons/react'
+import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, X, CloudCheck, DotsSixVertical } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useEncryptedStorage } from '@/lib/useEncryptedTasks'
 import { encryptDataWithPin, decryptDataWithPin, clearEncryptionKey } from '@/lib/encryption'
-import { Task, SortMode, isValidTaskArray } from '@/types'
+import { Task, isValidTaskArray, ensureSortOrder } from '@/types'
 import { PinScreen } from '@/components/PinScreen'
 import { syncWidgetData } from '@/lib/widgetSync'
 import { useTaskManager } from '@/hooks/useTaskManager'
@@ -24,16 +24,12 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
   const [tasks, setTasks, isReady] = useEncryptedStorage<Task[]>('tasks', [], storagePath)
   const isLoadedFile = !!loadedTasks
 
-  // Search & sort
+  // Search
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
-  const [sortMode, setSortMode] = useState<SortMode>('created')
 
   // Mobile FAB
   const [addOpen, setAddOpen] = useState(false)
-
-  // Widget sync (opt-in, off by default)
-  const [widgetSync, setWidgetSync] = useState(() => localStorage.getItem('widgetSync') === 'true')
 
   // Task CRUD hook
   const {
@@ -133,25 +129,18 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     return () => clearInterval(interval)
   }, [tasks])
 
-  // Widget sync effect — sync to native shared storage when tasks change
+  // Widget sync effect — always sync to native shared storage when tasks change
   useEffect(() => {
-    if (!widgetSync || !tasks) return
+    if (!tasks) return
     syncWidgetData(tasks).catch(() => { /* silent on web/unsupported */ })
-  }, [tasks, widgetSync])
+  }, [tasks])
 
-  const toggleWidgetSync = () => {
-    setWidgetSync(prev => {
-      const next = !prev
-      localStorage.setItem('widgetSync', String(next))
-      if (next && tasks) {
-        syncWidgetData(tasks).catch(() => {})
-        toast.success('Home screen widget enabled')
-      } else {
-        toast('Home screen widget disabled')
-      }
-      return next
-    })
-  }
+  // Migrate tasks without sortOrder on load
+  useEffect(() => {
+    if (!tasks || tasks.length === 0) return
+    const migrated = ensureSortOrder(tasks)
+    if (migrated !== tasks) setTasks(migrated)
+  }, [isReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Prune tombstones older than 30 days on mount
   useEffect(() => {
@@ -178,37 +167,27 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     return list.filter(t => t.text.toLowerCase().includes(q))
   }, [searchQuery])
 
-  const sortTasks = useCallback((list: Task[]) => {
-    const sorted = [...list]
-    switch (sortMode) {
-      case 'deadline':
-        return sorted.sort((a, b) => {
-          if (!a.deadline && !b.deadline) return b.createdAt - a.createdAt
-          if (!a.deadline) return 1
-          if (!b.deadline) return -1
-          return new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
-        })
-      case 'alpha':
-        return sorted.sort((a, b) => a.text.localeCompare(b.text))
-      default:
-        return sorted.sort((a, b) => b.createdAt - a.createdAt)
-    }
-  }, [sortMode])
+  const sortByOrder = useCallback((list: Task[]) => {
+    return [...list].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  }, [])
 
-  const activeTasks = sortTasks(filterBySearch(liveTasks.filter(t => !t.completed)))
-  const completedTasks = sortTasks(filterBySearch(liveTasks.filter(t => t.completed)))
+  const activeTasks = sortByOrder(filterBySearch(liveTasks.filter(t => !t.completed)))
+  const completedTasks = sortByOrder(filterBySearch(liveTasks.filter(t => t.completed)))
 
-  const cycleSortMode = () => {
-    setSortMode(current => {
-      switch (current) {
-        case 'created': return 'deadline'
-        case 'deadline': return 'alpha'
-        case 'alpha': return 'created'
-      }
-    })
-  }
-
-  const sortLabel = sortMode === 'created' ? 'Newest' : sortMode === 'deadline' ? 'Deadline' : 'A-Z'
+  const handleReorder = useCallback((reordered: Task[]) => {
+    const now = Date.now()
+    const updates = new Map<string, number>()
+    reordered.forEach((t, i) => updates.set(t.id, i + 1))
+    setTasks(current =>
+      (current || []).map(t => {
+        const newOrder = updates.get(t.id)
+        if (newOrder != null && newOrder !== t.sortOrder) {
+          return { ...t, sortOrder: newOrder, updatedAt: now }
+        }
+        return t
+      })
+    )
+  }, [setTasks])
 
   const triggerExport = () => {
     if (!tasks || tasks.length === 0) {
@@ -335,12 +314,6 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setSearchOpen(o => !o); setSearchQuery('') }} title="Search">
                   <MagnifyingGlass size={16} />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cycleSortMode} title={`Sort: ${sortLabel}`}>
-                  <SortAscending size={16} />
-                </Button>
-                <Button variant="ghost" size="icon" className={`h-8 w-8 ${widgetSync ? 'text-accent' : ''}`} onClick={toggleWidgetSync} title={widgetSync ? 'Home screen widget on' : 'Home screen widget off'}>
-                  <Broadcast size={16} weight={widgetSync ? 'fill' : 'regular'} />
-                </Button>
                 <SyncStatusIcon
                   status={syncConfig?.enabled ? syncState.status : 'disabled'}
                   onClick={() => syncConfig?.enabled ? setSyncSettingsOpen(true) : setSyncSetupOpen(true)}
@@ -365,15 +338,6 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                 </div>
               </div>
             </div>
-
-            {/* Sort indicator pill */}
-            {sortMode !== 'created' && (
-              <div className="flex items-center gap-1 mb-2">
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent-foreground font-medium">
-                  Sorted by {sortLabel}
-                </span>
-              </div>
-            )}
 
             {/* Search bar (expandable) */}
             <AnimatePresence>
@@ -433,11 +397,10 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
             ) : (
               <>
                 {activeTasks.length > 0 && (
-                  <div className="space-y-1">
-                    <AnimatePresence mode="popLayout">
-                      {activeTasks.map((task) => (
+                  <Reorder.Group axis="y" values={activeTasks} onReorder={handleReorder} className="space-y-1" as="div">
+                    {activeTasks.map((task) => (
+                      <Reorder.Item key={task.id} value={task} as="div" className="list-none">
                         <TaskItem
-                          key={task.id}
                           task={task}
                           isEditing={editingId === task.id}
                           editText={editText}
@@ -449,10 +412,11 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                           onEditDeadlineChange={setEditDeadline}
                           onSaveEdit={saveEdit}
                           onCancelEdit={cancelEdit}
+                          dragControls
                         />
-                      ))}
-                    </AnimatePresence>
-                  </div>
+                      </Reorder.Item>
+                    ))}
+                  </Reorder.Group>
                 )}
 
                 {completedTasks.length > 0 && (

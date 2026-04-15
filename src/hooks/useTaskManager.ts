@@ -21,12 +21,14 @@ export function useTaskManager({ tasks, setTasks }: UseTaskManagerParams) {
     if (!trimmed) return
 
     const now = Date.now()
+    const maxOrder = (tasks || []).reduce((max, t) => Math.max(max, t.sortOrder ?? 0), 0)
     const newTask: Task = {
       id: crypto.randomUUID(),
       text: trimmed,
       completed: false,
       createdAt: now,
       updatedAt: now,
+      sortOrder: maxOrder + 1,
       ...(newTaskDeadline ? { deadline: newTaskDeadline } : {})
     }
 

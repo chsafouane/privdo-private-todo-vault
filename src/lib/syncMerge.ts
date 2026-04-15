@@ -26,6 +26,7 @@ export function mergeTasks(local: Task[], remote: Task[]): Task[] {
       text: winner.text,
       completed: winner.completed,
       deadline: winner.deadline,
+      sortOrder: winner.sortOrder,
       createdAt: Math.min(L.createdAt, R.createdAt),
       updatedAt: Math.max(L.updatedAt, R.updatedAt),
       deletedAt: mergeDeletedAt(L, R),
@@ -59,7 +60,8 @@ export function hasChanges(local: Task[], merged: Task[]): boolean {
       orig.completed !== task.completed ||
       orig.deadline !== task.deadline ||
       orig.deletedAt !== task.deletedAt ||
-      orig.updatedAt !== task.updatedAt
+      orig.updatedAt !== task.updatedAt ||
+      orig.sortOrder !== task.sortOrder
     ) return true;
   }
   return false;

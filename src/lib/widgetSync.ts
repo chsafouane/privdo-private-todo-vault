@@ -15,18 +15,13 @@ interface WidgetTask {
 let registered = false
 
 /**
- * Pick the first active task sorted by nearest deadline.
+ * Pick the first active task sorted by sortOrder (matching app order).
  * Returns only truncated text to minimize plaintext exposure in shared storage.
  */
 function pickWidgetTask(tasks: Task[]): WidgetTask | null {
   const active = tasks
     .filter(t => !t.completed && !t.deletedAt)
-    .sort((a, b) => {
-      if (!a.deadline && !b.deadline) return a.createdAt - b.createdAt
-      if (!a.deadline) return 1
-      if (!b.deadline) return -1
-      return new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
-    })
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
 
   const task = active[0]
   if (!task) return null
