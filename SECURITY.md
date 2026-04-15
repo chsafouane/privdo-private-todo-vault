@@ -2,9 +2,35 @@ Thanks for helping make GitHub safe for everyone.
 
 # Security
 
-GitHub takes the security of our software products and services seriously, including all of the open source code repositories managed through our GitHub organizations, such as [GitHub](https://github.com/GitHub).
+## Security Architecture
 
-Even though [open source repositories are outside of the scope of our bug bounty program](https://bounty.github.com/index.html#scope) and therefore not eligible for bounty rewards, we will ensure that your finding gets passed along to the appropriate maintainers for remediation. 
+Privdo uses a layered encryption approach to protect your data both locally and in transit.
+
+### Local Encryption
+- **Cipher**: AES-256 via CryptoJS
+- **Key derivation**: PBKDF2 with 600,000 iterations and a 16-byte random salt per device
+- **PIN storage**: Only a PBKDF2-derived hash is stored — the PIN never persists in plaintext
+- **Data at rest**: All tasks are encrypted before being written to IndexedDB, filesystem, or localStorage
+
+### Sync Encryption (Optional)
+When sync is enabled, an additional encryption layer protects data in transit and at rest on the server:
+
+- **Sync key derivation**: PBKDF2 with 600,000 iterations using the sync passphrase and a fixed salt (`privdo-sync-key`)
+- **Passphrase entropy**: 12 BIP39 words = 128 bits of entropy
+- **Channel identification**: SHA-256 hash of passphrase (cannot be reversed)
+- **Server model**: Zero-knowledge — the server stores only opaque encrypted blobs and random channel IDs
+- **Key separation**: Local encryption key (from PIN) and sync encryption key (from passphrase) are fully independent
+
+### What the server can see
+| Data | Visible to server? |
+|---|---|
+| Task text, completion, deadlines | ❌ Never |
+| Your PIN | ❌ Never |
+| Your sync passphrase | ❌ Never |
+| Encrypted blob (opaque) | ✅ Yes |
+| Channel ID (random hash) | ✅ Yes |
+| Timestamp of last sync | ✅ Yes |
+| Email (if using email mode) | ✅ Yes |
 
 ## Reporting Security Issues
 
