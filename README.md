@@ -60,7 +60,7 @@ Privdo supports optional end-to-end encrypted sync. All encryption happens on yo
 
 ### Self-Hosting
 
-Privdo uses Supabase as the sync backend. To self-host:
+Sync works out of the box with the hosted Privdo backend — no setup required. If you prefer to control your own infrastructure, you can self-host the sync backend on your own Supabase project:
 
 1. Create a [Supabase](https://supabase.com) project (free tier works)
 2. Run the migration in `supabase/migrations/001_sync_blobs.sql`
@@ -71,7 +71,7 @@ Privdo uses Supabase as the sync backend. To self-host:
    VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your-key-here
    ```
 
-Without these variables, sync is simply unavailable — the app works fully offline.
+Without these variables, sync uses the default hosted backend. The server is zero-knowledge either way — it only ever stores encrypted blobs.
 
 ---
 
