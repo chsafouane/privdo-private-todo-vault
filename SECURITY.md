@@ -15,11 +15,12 @@ Privdo uses a layered encryption approach to protect your data both locally and 
 ### Sync Encryption (Optional)
 When sync is enabled, an additional encryption layer protects data in transit and at rest on the server:
 
-- **Sync key derivation**: PBKDF2 with 600,000 iterations using the sync passphrase and a fixed salt (`privdo-sync-key`)
-- **Passphrase entropy**: 12 BIP39 words = 128 bits of entropy
-- **Channel identification**: SHA-256 hash of passphrase (cannot be reversed)
+- **Sync key derivation**: PBKDF2 with 600,000 iterations using the sync secret and a fixed salt (`privdo-sync-key`)
+- **Sync secret**: In passphrase mode, the 12-word BIP39 passphrase (128 bits of entropy). In email mode, the combination of email + password.
+- **Channel identification**: SHA-256 hash of the sync secret with a separate salt (`privdo-channel-id`) — cannot be reversed to recover credentials
 - **Server model**: Zero-knowledge — the server stores only opaque encrypted blobs and random channel IDs
-- **Key separation**: Local encryption key (from PIN) and sync encryption key (from passphrase) are fully independent
+- **No authentication**: Neither mode uses Supabase Auth. All operations go through an Edge Function with a service-role key. The server never receives your email, password, or passphrase.
+- **Key separation**: Local encryption key (from PIN) and sync encryption key (from passphrase or email+password) are fully independent
 
 ### What the server can see
 | Data | Visible to server? |
@@ -27,10 +28,10 @@ When sync is enabled, an additional encryption layer protects data in transit an
 | Task text, completion, deadlines | ❌ Never |
 | Your PIN | ❌ Never |
 | Your sync passphrase | ❌ Never |
+| Your email or password (email mode) | ❌ Never |
 | Encrypted blob (opaque) | ✅ Yes |
 | Channel ID (random hash) | ✅ Yes |
 | Timestamp of last sync | ✅ Yes |
-| Email (if using email mode) | ✅ Yes |
 
 ## Reporting Security Issues
 
