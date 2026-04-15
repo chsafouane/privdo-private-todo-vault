@@ -1,39 +1,26 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, Trash, LockKey, Clock, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, ArrowCounterClockwise, Broadcast, Crown, CloudArrowUp, CloudArrowDown, CloudCheck } from '@phosphor-icons/react'
+import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, Broadcast, Crown, CloudArrowUp, CloudCheck } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEncryptedStorage } from '@/lib/useEncryptedTasks'
-import { encryptDataWithPin, decryptDataWithPin, clearEncryptionKey, encryptData, decryptData } from '@/lib/encryption'
+import { encryptDataWithPin, decryptDataWithPin, clearEncryptionKey } from '@/lib/encryption'
+import { Task, SortMode, isValidTaskArray } from '@/types'
 import { PinScreen } from '@/components/PinScreen'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { syncWidgetData } from '@/lib/widgetSync'
 import { LicenseDialog } from '@/components/LicenseDialog'
-import { isPro, syncPush, syncPull, getLicenseInfo } from '@/lib/license'
-
-interface Task {
-  id: string
-  text: string
-  completed: boolean
-  createdAt: number
-  updatedAt: number
-  deadline?: string
-  deletedAt?: number
-}
-
-type SortMode = 'created' | 'deadline' | 'alpha'
+import { isPro, getLicenseInfo } from '@/lib/license'
+import { useCloudSync } from '@/hooks/useCloudSync'
+import { useTaskManager } from '@/hooks/useTaskManager'
+import { TaskItem } from '@/components/TaskItem'
+import { AddTaskForm } from '@/components/AddTaskForm'
+import { PinDialog } from '@/components/PinDialog'
 
 function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: string | null; databaseName: string; loadedTasks?: Task[] | null }) {
   const [tasks, setTasks, isReady] = useEncryptedStorage<Task[]>('tasks', [], storagePath)
-  const [newTaskText, setNewTaskText] = useState('')
-  const [newTaskDeadline, setNewTaskDeadline] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editText, setEditText] = useState('')
-  const [editDeadline, setEditDeadline] = useState('')
   const isLoadedFile = !!loadedTasks
 
   // Search & sort
@@ -41,73 +28,27 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
   const [searchOpen, setSearchOpen] = useState(false)
   const [sortMode, setSortMode] = useState<SortMode>('created')
 
-  // Undo delete
-  const [recentlyDeleted, setRecentlyDeleted] = useState<Task | null>(null)
-  const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   // Mobile FAB
   const [addOpen, setAddOpen] = useState(false)
 
   // Widget sync (opt-in, off by default)
   const [widgetSync, setWidgetSync] = useState(() => localStorage.getItem('widgetSync') === 'true')
 
-  // Cloud sync state
-  const [licenseDialogOpen, setLicenseDialogOpen] = useState(false)
-  const [proStatus, setProStatus] = useState(() => isPro())
-  const [syncing, setSyncing] = useState(false)
-  const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Cloud sync hook
+  const { syncing, proStatus, setProStatus, licenseDialogOpen, setLicenseDialogOpen } = useCloudSync({ tasks, setTasks, isReady })
 
-  // Cloud sync: pull on mount if Pro
-  useEffect(() => {
-    if (!proStatus || !isReady) return
-    handleCloudPull(true)
-  }, [proStatus, isReady]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Task CRUD hook
+  const {
+    newTaskText, setNewTaskText, newTaskDeadline, setNewTaskDeadline,
+    editingId, editText, setEditText, editDeadline, setEditDeadline,
+    undoTimeoutRef,
+    addTask: addTaskBase, toggleTask, deleteTask, clearCompleted,
+    startEdit, saveEdit, cancelEdit,
+  } = useTaskManager({ tasks, setTasks })
 
-  // Cloud sync: debounced push when tasks change
-  useEffect(() => {
-    if (!proStatus || !isReady || !tasks) return
-    if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current)
-    syncDebounceRef.current = setTimeout(() => {
-      handleCloudPush()
-    }, 3000) // Push 3 seconds after last change
-    return () => { if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current) }
-  }, [tasks, proStatus, isReady]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleCloudPush = async () => {
-    if (!tasks || syncing) return
-    setSyncing(true)
-    try {
-      const blob = encryptData(tasks)
-      const result = await syncPush(blob)
-      if (!result.success && result.error === 'conflict') {
-        toast('Sync conflict — pulling latest from cloud', { duration: 3000 })
-        await handleCloudPull(false)
-      } else if (!result.success) {
-        // Silent fail — local data is safe
-      }
-    } catch {
-      // Silent network error
-    } finally {
-      setSyncing(false)
-    }
-  }
-
-  const handleCloudPull = async (silent: boolean) => {
-    setSyncing(true)
-    try {
-      const result = await syncPull()
-      if (result.success && result.encryptedBlob) {
-        const pulled = decryptData(result.encryptedBlob)
-        if (Array.isArray(pulled)) {
-          setTasks(pulled)
-          if (!silent) toast.success('Synced from cloud')
-        }
-      }
-    } catch {
-      if (!silent) toast.error('Sync failed')
-    } finally {
-      setSyncing(false)
-    }
+  const addTask = () => {
+    addTaskBase()
+    setAddOpen(false)
   }
 
   // If tasks were loaded from an external file, use those instead
@@ -216,7 +157,7 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     return () => {
       if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const liveTasks = (tasks || []).filter(t => !t.deletedAt)
 
@@ -245,116 +186,6 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
 
   const activeTasks = sortTasks(filterBySearch(liveTasks.filter(t => !t.completed)))
   const completedTasks = sortTasks(filterBySearch(liveTasks.filter(t => t.completed)))
-
-  const addTask = () => {
-    const trimmed = newTaskText.trim()
-    if (!trimmed) return
-
-    const now = Date.now()
-    const newTask: Task = {
-      id: now.toString(),
-      text: trimmed,
-      completed: false,
-      createdAt: now,
-      updatedAt: now,
-      ...(newTaskDeadline ? { deadline: newTaskDeadline } : {})
-    }
-
-    setTasks(current => [...(current || []), newTask])
-    setNewTaskText('')
-    setNewTaskDeadline('')
-    setAddOpen(false)
-    toast.success('Task added')
-  }
-
-  const toggleTask = (id: string) => {
-    setTasks(current =>
-      (current || []).map(task =>
-        task.id === id ? { ...task, completed: !task.completed, updatedAt: Date.now() } : task
-      )
-    )
-  }
-
-  const deleteTask = (id: string) => {
-    const task = (tasks || []).find(t => t.id === id)
-    if (task) {
-      // Clear any previous undo timer
-      if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current)
-      setRecentlyDeleted(task)
-
-      // Soft delete
-      setTasks(current =>
-        (current || []).map(t =>
-          t.id === id ? { ...t, deletedAt: Date.now(), updatedAt: Date.now() } : t
-        )
-      )
-
-      // Auto-purge after 5s
-      undoTimeoutRef.current = setTimeout(() => {
-        setRecentlyDeleted(null)
-      }, 5000)
-
-      toast('Task deleted', {
-        action: {
-          label: 'Undo',
-          onClick: () => undoDelete(id),
-        },
-        duration: 5000,
-      })
-    }
-  }
-
-  const undoDelete = (id: string) => {
-    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current)
-    setTasks(current =>
-      (current || []).map(t =>
-        t.id === id ? { ...t, deletedAt: undefined, updatedAt: Date.now() } : t
-      )
-    )
-    setRecentlyDeleted(null)
-    toast.success('Task restored')
-  }
-
-  const clearCompleted = () => {
-    const now = Date.now()
-    setTasks(current =>
-      (current || []).map(task =>
-        task.completed && !task.deletedAt ? { ...task, deletedAt: now, updatedAt: now } : task
-      )
-    )
-    toast.success('Cleared completed tasks')
-  }
-
-  const startEdit = (task: Task) => {
-    setEditingId(task.id)
-    setEditText(task.text)
-    setEditDeadline(task.deadline || '')
-  }
-
-  const saveEdit = () => {
-    if (!editingId) return
-    
-    const trimmed = editText.trim()
-    if (!trimmed) {
-      cancelEdit()
-      return
-    }
-
-    setTasks(current =>
-      (current || []).map(task =>
-        task.id === editingId ? { ...task, text: trimmed, deadline: editDeadline || undefined, updatedAt: Date.now() } : task
-      )
-    )
-    setEditingId(null)
-    setEditText('')
-    setEditDeadline('')
-  }
-
-  const cancelEdit = () => {
-    setEditingId(null)
-    setEditText('')
-    setEditDeadline('')
-  }
 
   const cycleSortMode = () => {
     setSortMode(current => {
@@ -404,7 +235,7 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     // Handle encrypted backups
     if (fileContent && fileContent.encryptedData) {
       const decryptedTasks = decryptDataWithPin(fileContent.encryptedData, pinDialogValue)
-      if (Array.isArray(decryptedTasks)) {
+      if (isValidTaskArray(decryptedTasks)) {
         setTasks(decryptedTasks)
         toast.success('Secure database imported successfully')
         setPinDialogMode(null)
@@ -415,7 +246,7 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
       }
     } 
     // Fallback for unencrypted
-    else if (Array.isArray(fileContent)) {
+    else if (isValidTaskArray(fileContent)) {
       setTasks(fileContent)
       toast.success('Unencrypted database imported successfully')
       setPinDialogMode(null)
@@ -441,7 +272,7 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
           setPendingImportContent(fileContent)
           setPinDialogValue('')
           setPinDialogMode('import')
-        } else if (Array.isArray(fileContent)) {
+        } else if (isValidTaskArray(fileContent)) {
           setTasks(fileContent)
           toast.success('Unencrypted database imported successfully')
         } else {
@@ -453,6 +284,20 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
       e.target.value = ''
     }
     reader.readAsText(file)
+  }
+
+  const handlePinDialogClose = () => {
+    setPinDialogMode(null)
+    setPinDialogValue('')
+    setPendingImportContent(null)
+  }
+
+  const handlePinDialogConfirm = () => {
+    if (pinDialogMode === 'import') {
+      handleImportConfirm()
+    } else {
+      handleExportConfirm()
+    }
   }
 
   return (
@@ -561,79 +406,15 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
               )}
             </AnimatePresence>
 
-            {/* Desktop add task form */}
-            <div className="hidden sm:flex flex-col sm:flex-row gap-2">
-              <div className="flex-1 flex gap-2 w-full">
-                <Input
-                  id="new-task-input"
-                  value={newTaskText}
-                  onChange={(e) => setNewTaskText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newTaskText.trim()) addTask()
-                  }}
-                  placeholder="Add a new task..."
-                  className="flex-1 h-10 text-sm bg-background min-w-0"
-                  autoFocus
-                />
-                <Input
-                  type="datetime-local"
-                  value={newTaskDeadline}
-                  onChange={(e) => setNewTaskDeadline(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newTaskText.trim()) addTask()
-                  }}
-                  className="flex-shrink-0 h-10 w-fit bg-background text-sm text-foreground items-center"
-                  aria-label="Set a deadline (optional)"
-                />
-              </div>
-              <Button
-                onClick={addTask}
-                disabled={!newTaskText.trim()}
-                className="h-10 px-5 gap-1.5 text-sm"
-              >
-                <Plus size={18} weight="bold" />
-                Add
-              </Button>
-            </div>
-
-            {/* Mobile inline add form (slides open from FAB) */}
-            <AnimatePresence>
-              {addOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="sm:hidden overflow-hidden"
-                >
-                  <div className="flex flex-col gap-2 pt-2">
-                    <Input
-                      value={newTaskText}
-                      onChange={(e) => setNewTaskText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && newTaskText.trim()) addTask()
-                      }}
-                      placeholder="What needs to be done?"
-                      className="h-10 text-sm bg-background"
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
-                      <Input
-                        type="datetime-local"
-                        value={newTaskDeadline}
-                        onChange={(e) => setNewTaskDeadline(e.target.value)}
-                        className="flex-1 h-9 bg-background text-sm text-foreground"
-                        aria-label="Set a deadline (optional)"
-                      />
-                      <Button onClick={addTask} disabled={!newTaskText.trim()} className="h-9 px-4 gap-1 text-sm">
-                        <Plus size={16} weight="bold" />
-                        Add
-                      </Button>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <AddTaskForm
+              newTaskText={newTaskText}
+              newTaskDeadline={newTaskDeadline}
+              addOpen={addOpen}
+              onTextChange={setNewTaskText}
+              onDeadlineChange={setNewTaskDeadline}
+              onAdd={addTask}
+              onToggleOpen={setAddOpen}
+            />
           </div>
 
           <div className="flex-1 p-4 space-y-4 overflow-y-auto pb-24 sm:pb-4">
@@ -656,124 +437,20 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                   <div className="space-y-1">
                     <AnimatePresence mode="popLayout">
                       {activeTasks.map((task) => (
-                        <motion.div
+                        <TaskItem
                           key={task.id}
-                          layout
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, x: -100 }}
-                          transition={{ duration: 0.2 }}
-                          className="relative"
-                        >
-                          {/* Swipe delete background */}
-                          <div className="absolute inset-0 rounded-lg bg-destructive/10 flex items-center justify-end pr-4 pointer-events-none">
-                            <Trash size={18} className="text-destructive" />
-                          </div>
-                          <motion.div
-                            drag="x"
-                            dragConstraints={{ left: 0, right: 0 }}
-                            dragElastic={0.25}
-                            onDragEnd={(_e, info) => {
-                              if (info.offset.x < -100) deleteTask(task.id)
-                            }}
-                            className="group flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/50 transition-colors touch-pan-y relative"
-                          >
-                            <Checkbox
-                              id={`task-${task.id}`}
-                              checked={task.completed}
-                              onCheckedChange={() => toggleTask(task.id)}
-                              className="mt-0.5 flex-shrink-0"
-                            />
-                            
-                            {editingId === task.id ? (
-                              <div className="flex-1 flex flex-col gap-2">
-                                <Input
-                                  value={editText}
-                                  onChange={(e) => setEditText(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') saveEdit()
-                                    if (e.key === 'Escape') cancelEdit()
-                                  }}
-                                  onBlur={(e) => {
-                                    if (!e.relatedTarget?.closest('[data-edit-deadline]')) saveEdit()
-                                  }}
-                                  className="flex-1 h-9"
-                                  autoFocus
-                                />
-                                <div className="flex items-center gap-2">
-                                  <Clock size={14} className="text-muted-foreground flex-shrink-0" />
-                                  <Input
-                                    type="datetime-local"
-                                    data-edit-deadline
-                                    value={editDeadline}
-                                    onChange={(e) => setEditDeadline(e.target.value)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') saveEdit()
-                                      if (e.key === 'Escape') cancelEdit()
-                                    }}
-                                    onBlur={(e) => {
-                                      if (!e.relatedTarget?.closest('[data-edit-deadline]') && e.relatedTarget?.tagName !== 'INPUT') saveEdit()
-                                    }}
-                                    className="h-8 w-fit text-xs bg-background"
-                                  />
-                                  {editDeadline && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      data-edit-deadline
-                                      onClick={() => setEditDeadline('')}
-                                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                      title="Remove deadline"
-                                    >
-                                      <Trash size={12} />
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex-1 flex flex-col min-w-0">
-                                <label
-                                  htmlFor={`task-${task.id}`}
-                                  onClick={(e) => {
-                                    e.preventDefault()
-                                    startEdit(task)
-                                  }}
-                                  className="text-sm text-foreground cursor-pointer select-none truncate"
-                                >
-                                  {task.text}
-                                </label>
-                                {task.deadline && (
-                                  <div className="flex items-center gap-1 text-[11px] mt-0.5">
-                                    {new Date(task.deadline).getTime() < Date.now() ? (
-                                      <>
-                                        <Clock size={12} weight="bold" className="text-destructive" />
-                                        <span className="text-destructive font-medium">
-                                          {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Clock size={12} className="text-muted-foreground" />
-                                        <span className="text-muted-foreground">
-                                          {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => deleteTask(task.id)}
-                              className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-7 w-7 text-muted-foreground hover:text-destructive flex-shrink-0"
-                            >
-                              <Trash size={16} />
-                            </Button>
-                          </motion.div>
-                        </motion.div>
+                          task={task}
+                          isEditing={editingId === task.id}
+                          editText={editText}
+                          editDeadline={editDeadline}
+                          onToggle={toggleTask}
+                          onDelete={deleteTask}
+                          onStartEdit={startEdit}
+                          onEditTextChange={setEditText}
+                          onEditDeadlineChange={setEditDeadline}
+                          onSaveEdit={saveEdit}
+                          onCancelEdit={cancelEdit}
+                        />
                       ))}
                     </AnimatePresence>
                   </div>
@@ -806,48 +483,21 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                       </div>
                       <AnimatePresence mode="popLayout">
                         {!completedCollapsed && completedTasks.map((task) => (
-                          <motion.div
+                          <TaskItem
                             key={task.id}
-                            layout
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, x: -100 }}
-                            transition={{ duration: 0.2 }}
-                            className="group flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
-                          >
-                            <Checkbox
-                              id={`task-${task.id}`}
-                              checked={task.completed}
-                              onCheckedChange={() => toggleTask(task.id)}
-                              className="mt-0.5 flex-shrink-0"
-                            />
-                            
-                            <div className="flex-1 flex flex-col min-w-0">
-                              <label
-                                htmlFor={`task-${task.id}`}
-                                className="text-sm text-muted-foreground line-through cursor-pointer select-none truncate"
-                              >
-                                {task.text}
-                              </label>
-                              {task.deadline && (
-                                <div className="flex items-center gap-1 text-[11px] text-muted-foreground/60 mt-0.5">
-                                  <Clock size={12} />
-                                  <span>
-                                    {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => deleteTask(task.id)}
-                              className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-7 w-7 text-muted-foreground hover:text-destructive flex-shrink-0"
-                            >
-                              <Trash size={16} />
-                            </Button>
-                          </motion.div>
+                            task={task}
+                            isCompleted
+                            isEditing={false}
+                            editText=""
+                            editDeadline=""
+                            onToggle={toggleTask}
+                            onDelete={deleteTask}
+                            onStartEdit={startEdit}
+                            onEditTextChange={setEditText}
+                            onEditDeadlineChange={setEditDeadline}
+                            onSaveEdit={saveEdit}
+                            onCancelEdit={cancelEdit}
+                          />
                         ))}
                       </AnimatePresence>
                     </div>
@@ -903,63 +553,13 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
         </Button>
       </div>
       
-      <Dialog open={pinDialogMode !== null} onOpenChange={(open) => {
-        if (!open) {
-          setPinDialogMode(null)
-          setPinDialogValue('')
-          setPendingImportContent(null)
-        }
-      }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {pinDialogMode === 'import' ? 'Decrypt Backup' : 'Encrypt Backup'}
-            </DialogTitle>
-            <DialogDescription>
-              {pinDialogMode === 'import' 
-                ? 'Enter the PIN used to encrypt this backup file.' 
-                : 'Enter a PIN to encrypt this backup. You will need it to import these tasks later.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center space-x-2 py-4">
-            <Input
-              type="password"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={pinDialogValue}
-              onChange={(e) => setPinDialogValue(e.target.value.replace(/[^0-9]/g, ''))}
-              placeholder="Enter PIN..."
-              className="text-center text-xl tracking-[0.5em] font-mono h-12"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  pinDialogMode === 'import' ? handleImportConfirm() : handleExportConfirm()
-                }
-              }}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button 
-              type="button" 
-              variant="secondary" 
-              onClick={() => {
-                setPinDialogMode(null)
-                setPinDialogValue('')
-                setPendingImportContent(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="button" 
-              onClick={pinDialogMode === 'import' ? handleImportConfirm : handleExportConfirm}
-              disabled={pinDialogValue.length < 4}
-            >
-              {pinDialogMode === 'import' ? 'Import' : 'Export'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PinDialog
+        mode={pinDialogMode}
+        pinValue={pinDialogValue}
+        onPinChange={setPinDialogValue}
+        onClose={handlePinDialogClose}
+        onConfirm={handlePinDialogConfirm}
+      />
     </div>
   )
 }
@@ -987,7 +587,7 @@ export default function App() {
       }, AUTO_LOCK_MS);
     };
 
-    const events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+    const events = ['pointerdown', 'keydown', 'scroll', 'touchstart', 'mousemove'];
     events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }));
     resetTimer();
 
