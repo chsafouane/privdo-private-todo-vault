@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, Trash, LockKey, Clock, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, ArrowCounterClockwise } from '@phosphor-icons/react'
+import { Plus, Trash, LockKey, Clock, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, ArrowCounterClockwise, Broadcast } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -11,6 +11,7 @@ import { useEncryptedStorage } from '@/lib/useEncryptedTasks'
 import { encryptDataWithPin, decryptDataWithPin, clearEncryptionKey } from '@/lib/encryption'
 import { PinScreen } from '@/components/PinScreen'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { syncWidgetData } from '@/lib/widgetSync'
 
 interface Task {
   id: string
@@ -44,6 +45,9 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
 
   // Mobile FAB
   const [addOpen, setAddOpen] = useState(false)
+
+  // Widget sync (opt-in, off by default)
+  const [widgetSync, setWidgetSync] = useState(() => localStorage.getItem('widgetSync') === 'true')
 
   // If tasks were loaded from an external file, use those instead
   useEffect(() => {
@@ -115,6 +119,26 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     const interval = setInterval(checkReminders, 60000)
     return () => clearInterval(interval)
   }, [tasks])
+
+  // Widget sync effect — sync to native shared storage when tasks change
+  useEffect(() => {
+    if (!widgetSync || !tasks) return
+    syncWidgetData(tasks).catch(() => { /* silent on web/unsupported */ })
+  }, [tasks, widgetSync])
+
+  const toggleWidgetSync = () => {
+    setWidgetSync(prev => {
+      const next = !prev
+      localStorage.setItem('widgetSync', String(next))
+      if (next && tasks) {
+        syncWidgetData(tasks).catch(() => {})
+        toast.success('Widget sync enabled')
+      } else {
+        toast('Widget sync disabled')
+      }
+      return next
+    })
+  }
 
   // Prune tombstones older than 30 days on mount
   useEffect(() => {
@@ -396,6 +420,9 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                 </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cycleSortMode} title={`Sort: ${sortLabel}`}>
                   <SortAscending size={16} />
+                </Button>
+                <Button variant="ghost" size="icon" className={`h-8 w-8 ${widgetSync ? 'text-accent' : ''}`} onClick={toggleWidgetSync} title={widgetSync ? 'Widget sync on' : 'Widget sync off'}>
+                  <Broadcast size={16} weight={widgetSync ? 'fill' : 'regular'} />
                 </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDarkMode(d => !d)} title="Toggle theme">
                   {darkMode ? <Sun size={16} /> : <Moon size={16} />}
