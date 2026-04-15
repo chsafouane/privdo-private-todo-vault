@@ -10,7 +10,6 @@ export interface AddTaskFormProps {
   onTextChange: (text: string) => void
   onDeadlineChange: (deadline: string) => void
   onAdd: () => void
-  onToggleOpen: (open: boolean) => void
 }
 
 export function AddTaskForm({

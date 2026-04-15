@@ -18,6 +18,8 @@ export function isValidTaskArray(data: unknown): data is Task[] {
     typeof item.text === 'string' &&
     typeof item.completed === 'boolean' &&
     typeof item.createdAt === 'number' &&
-    typeof item.updatedAt === 'number'
+    typeof item.updatedAt === 'number' &&
+    (!('deadline' in item) || item.deadline === undefined || typeof item.deadline === 'string') &&
+    (!('deletedAt' in item) || item.deletedAt === undefined || typeof item.deletedAt === 'number')
   )
 }

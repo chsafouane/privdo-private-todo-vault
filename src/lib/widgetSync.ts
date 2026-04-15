@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { WidgetBridgePlugin } from 'capacitor-widget-bridge'
+import { Task } from '@/types'
 
 const GROUP = 'group.com.privdo.app'
 const WIDGET_KEY = 'widgetTask'
@@ -9,16 +10,6 @@ interface WidgetTask {
   text: string
   completed: boolean
   deadline?: string
-}
-
-interface Task {
-  id: string
-  text: string
-  completed: boolean
-  createdAt: number
-  updatedAt: number
-  deadline?: string
-  deletedAt?: number
 }
 
 let registered = false
