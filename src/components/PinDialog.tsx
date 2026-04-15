@@ -34,7 +34,7 @@ export function PinDialog({ mode, pinValue, onPinChange, onClose, onConfirm }: P
             value={pinValue}
             onChange={(e) => onPinChange(e.target.value.replace(/[^0-9]/g, ''))}
             placeholder="Enter PIN..."
-            className="text-center text-xl tracking-[0.5em] font-mono h-12"
+            className="text-center text-xl tracking-[0.5em] placeholder:tracking-normal font-mono h-12"
             onKeyDown={(e) => {
               if (e.key === 'Enter') onConfirm()
             }}

@@ -235,7 +235,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
               pattern="[0-9]*"
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
-              className="text-center text-2xl tracking-[0.5em] font-mono h-14"
+              className="text-center text-2xl tracking-[0.5em] placeholder:tracking-normal font-mono h-14"
               autoFocus
             />
             {isSetup && pin.length > 0 && (
@@ -304,7 +304,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
                 pattern="[0-9]*"
                 value={loadFilePin}
                 onChange={(e) => setLoadFilePin(e.target.value.replace(/[^0-9]/g, ''))}
-                className="text-center text-xl tracking-[0.5em] font-mono h-12"
+                className="text-center text-xl tracking-[0.5em] placeholder:tracking-normal font-mono h-12"
                 onKeyDown={(e) => { if (e.key === 'Enter') handleLoadFileDecrypt(); }}
                 autoFocus
               />
