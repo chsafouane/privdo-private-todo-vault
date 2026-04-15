@@ -6,6 +6,8 @@ const isDev = process.env.NODE_ENV === 'development';
 
 const CONFIG_PATH = path.join(app.getPath('userData'), 'privdo-config.json');
 
+let currentStoragePath = null;
+
 async function getConfig() {
   try {
     const data = await fs.readFile(CONFIG_PATH, 'utf-8');
@@ -18,6 +20,18 @@ async function getConfig() {
 async function saveConfig(config) {
   const current = await getConfig();
   await fs.writeFile(CONFIG_PATH, JSON.stringify({ ...current, ...config }, null, 2));
+}
+
+function validateFilePath(filePath) {
+  if (!currentStoragePath) {
+    throw new Error('No storage path configured');
+  }
+  const resolved = path.resolve(filePath);
+  const resolvedStorage = path.resolve(currentStoragePath);
+  if (!resolved.startsWith(resolvedStorage + path.sep) && resolved !== resolvedStorage) {
+    throw new Error('Access denied: path is outside the configured storage directory');
+  }
+  return resolved;
 }
 
 function createWindow () {
@@ -39,13 +53,19 @@ function createWindow () {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  const config = await getConfig();
+  currentStoragePath = config.storagePath || null;
+
   ipcMain.handle('get-config', async () => {
     return await getConfig();
   });
 
   ipcMain.handle('save-config', async (event, config) => {
     await saveConfig(config);
+    if (config.storagePath !== undefined) {
+      currentStoragePath = config.storagePath;
+    }
     return true;
   });
 
@@ -59,14 +79,16 @@ app.whenReady().then(() => {
 
   ipcMain.handle('read-file', async (event, filePath) => {
     try {
-      return await fs.readFile(filePath, 'utf-8');
+      const safePath = validateFilePath(filePath);
+      return await fs.readFile(safePath, 'utf-8');
     } catch {
       return null;
     }
   });
 
   ipcMain.handle('write-file', async (event, filePath, content) => {
-    await fs.writeFile(filePath, content, 'utf-8');
+    const safePath = validateFilePath(filePath);
+    await fs.writeFile(safePath, content, 'utf-8');
     return true;
   });
 
