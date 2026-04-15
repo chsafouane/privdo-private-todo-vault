@@ -120,16 +120,14 @@ The `.dmg` is output to `release/`. Drag to Applications to install.
 
 The app can run as a browser extension popup (400×600).
 
-**Build the extension:**
-
-The Flutter version of Privdo ([`chsafouane/privdo-flutter`](https://github.com/chsafouane/privdo-flutter)) includes a build script that packages the web app as a Manifest V3 Chrome extension:
+The `chrome_extension/` directory is a prebuilt Manifest V3 extension. After any code change, rebuild it:
 
 ```bash
-# In the privdo-flutter repo:
-./build_chrome_extension.sh
+npm run build
+cp dist/assets/index-*.js chrome_extension/assets/
+cp dist/assets/index-*.css chrome_extension/assets/
+# Update the script/css filenames in chrome_extension/index.html
 ```
-
-This runs `flutter build web`, then assembles `chrome_extension/` with the correct manifest, CSP, and popup sizing.
 
 **Install:**
 
@@ -170,14 +168,6 @@ This builds the web app, syncs to the `android/` project, and opens Android Stud
 
 **Requires:** Android Studio, Java 17+
 
-### 6. Flutter Version (macOS native + Web + Extension)
-
-A native Flutter port is available at [`chsafouane/privdo-flutter`](https://github.com/chsafouane/privdo-flutter). It shares the same encryption format and supports:
-
-- **macOS** — native desktop app via `flutter build macos`
-- **Web** — `flutter build web --release`, serve the `build/web/` output
-- **Chrome Extension** — `./build_chrome_extension.sh` (see section 3 above)
-
 ---
 
 ## Available Scripts
@@ -207,7 +197,6 @@ A native Flutter port is available at [`chsafouane/privdo-flutter`](https://gith
 | **Sync** | Supabase (optional — E2E encrypted, zero-knowledge server) |
 | **Desktop** | Electron (macOS .dmg) |
 | **Mobile** | Capacitor (iOS + Android) |
-| **Flutter** | Dart, Riverpod, PointyCastle — same encryption, native performance |
 
 ## Project Structure
 
