@@ -3,7 +3,7 @@ import { LockKey, Keyhole, FolderOpen, FileArrowUp } from '@phosphor-icons/react
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { hashPin, legacyHashPin, setEncryptionKeyFromPin, decryptDataWithPin, constantTimeEqual } from '@/lib/encryption';
+import { hashPin, legacyHashPin, setEncryptionKeyFromPin, decryptDataWithPin, constantTimeEqual, clearEncryptionKey } from '@/lib/encryption';
 import { isValidTaskArray } from '@/types';
 import { toast } from 'sonner';
 
@@ -112,11 +112,13 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
     const currentPin = pin;
     setPin(''); // Clear PIN from state immediately
 
-    const currentHash = hashPin(currentPin);
+    // Derive hash and encryption keys in parallel (native Web Crypto, fast)
+    const [currentHash] = await Promise.all([
+      hashPin(currentPin),
+      setEncryptionKeyFromPin(currentPin),
+    ]);
 
     if (isSetup) {
-      setEncryptionKeyFromPin(currentPin);
-      
       if (isElectron) {
         await (window as any).electron.invoke('save-config', { pinHash: currentHash });
       } else {
@@ -128,7 +130,6 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
       onUnlock(currentHash, storagePath);
     } else {
       if (storedHash && constantTimeEqual(currentHash, storedHash)) {
-        setEncryptionKeyFromPin(currentPin);
         setFailedAttempts(0);
         setIsSubmitting(false);
         onUnlock(currentHash, storagePath);
@@ -136,7 +137,6 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
         // Try legacy SHA-256 hash for pre-migration users
         const legacyHash = legacyHashPin(currentPin);
         if (storedHash && constantTimeEqual(legacyHash, storedHash)) {
-          setEncryptionKeyFromPin(currentPin);
           // Migrate stored hash to PBKDF2
           if (isElectron) {
             await (window as any).electron.invoke('save-config', { pinHash: currentHash });
@@ -147,6 +147,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
           setIsSubmitting(false);
           onUnlock(currentHash, storagePath);
         } else {
+          clearEncryptionKey();
           applyFailedAttemptPenalty();
           setIsSubmitting(false);
         }
@@ -179,7 +180,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
     reader.readAsText(file);
   };
 
-  const handleLoadFileDecrypt = () => {
+  const handleLoadFileDecrypt = async () => {
     if (!pendingFile || loadFilePin.length < 4) return;
     if (isLockedOut) {
       toast.error(`Locked. Wait ${lockSeconds}s before retrying.`);
@@ -187,7 +188,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
     }
     const currentFilePin = loadFilePin;
     setLoadFilePin(''); // Clear file PIN from state immediately
-    const decrypted = decryptDataWithPin(pendingFile.content.encryptedData, currentFilePin);
+    const decrypted = await decryptDataWithPin(pendingFile.content.encryptedData, currentFilePin);
     if (isValidTaskArray(decrypted)) {
       onLoadFile(decrypted, pendingFile.name);
       setPendingFile(null);

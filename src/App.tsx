@@ -219,9 +219,9 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     setPinDialogMode('export')
   }
 
-  const handleExportConfirm = () => {
+  const handleExportConfirm = async () => {
     if (!tasks || !pinDialogValue.trim()) return
-    const encrypted = encryptDataWithPin(tasks, pinDialogValue)
+    const encrypted = await encryptDataWithPin(tasks, pinDialogValue)
     const exportObject = {
       version: 1,
       encryptedData: encrypted
@@ -239,13 +239,13 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     setPinDialogValue('')
   }
   
-  const handleImportConfirm = () => {
+  const handleImportConfirm = async () => {
     if (!pendingImportContent || !pinDialogValue.trim()) return
     const fileContent = pendingImportContent
     
     // Handle encrypted backups
     if (fileContent && fileContent.encryptedData) {
-      const decryptedTasks = decryptDataWithPin(fileContent.encryptedData, pinDialogValue)
+      const decryptedTasks = await decryptDataWithPin(fileContent.encryptedData, pinDialogValue)
       if (isValidTaskArray(decryptedTasks)) {
         setTasks(decryptedTasks)
         toast.success('Secure database imported successfully')

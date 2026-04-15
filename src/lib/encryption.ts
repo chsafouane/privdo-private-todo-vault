@@ -18,21 +18,42 @@ function getSalt(): string {
   return salt;
 }
 
-function deriveKey(pin: string, salt: string): string {
-  const saltWords = CryptoJS.enc.Hex.parse(salt);
-  return CryptoJS.PBKDF2(pin, saltWords, { keySize: KEY_SIZE, iterations: ITERATIONS }).toString();
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+  }
+  return bytes;
 }
 
-function deriveMigrationKey(pin: string, salt: string): string {
-  const saltWords = CryptoJS.enc.Hex.parse(salt);
-  return CryptoJS.PBKDF2(pin, saltWords, { keySize: LEGACY_KEY_SIZE, iterations: ITERATIONS }).toString();
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function pbkdf2Native(pin: string, salt: Uint8Array, iterations: number, keyLengthBits: number): Promise<string> {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
+  const derived = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    keyMaterial,
+    keyLengthBits
+  );
+  return bytesToHex(new Uint8Array(derived));
+}
+
+async function deriveKey(pin: string, salt: string): Promise<string> {
+  return pbkdf2Native(pin, hexToBytes(salt), ITERATIONS, KEY_SIZE * 32);
+}
+
+async function deriveMigrationKey(pin: string, salt: string): Promise<string> {
+  return pbkdf2Native(pin, hexToBytes(salt), ITERATIONS, LEGACY_KEY_SIZE * 32);
 }
 
 // Legacy key uses a hard-coded salt and only 1000 iterations (insecure).
 // Kept solely for migrating very old encrypted data to the current scheme.
-function deriveLegacyKey(pin: string): string {
-  const salt = CryptoJS.enc.Utf8.parse('local-todo-manager-salt');
-  return CryptoJS.PBKDF2(pin, salt, { keySize: LEGACY_KEY_SIZE, iterations: 1000 }).toString();
+async function deriveLegacyKey(pin: string): Promise<string> {
+  const salt = new TextEncoder().encode('local-todo-manager-salt');
+  return pbkdf2Native(pin, salt, 1000, LEGACY_KEY_SIZE * 32);
 }
 
 // Derive a separate HMAC key for encrypt-then-MAC authentication
@@ -92,14 +113,17 @@ function legacyDecryptPassphraseMode(cipherText: string, keyHex: string): string
   }
 }
 
-export function setEncryptionKeyFromPin(pin: string) {
+export async function setEncryptionKeyFromPin(pin: string) {
   const salt = getSalt();
-  encryptionKey = deriveKey(pin, salt);
-  // Migration key: old 128-bit key with current salt + iterations
-  migrationKey = deriveMigrationKey(pin, salt);
-  // Always derive legacy key so very old data (128-bit / 1000 iter) can be decrypted
-  // regardless of whether the user went through intermediate migration steps
-  legacyKey = deriveLegacyKey(pin);
+  // Derive all keys in parallel using native Web Crypto API
+  const [primary, migration, legacy] = await Promise.all([
+    deriveKey(pin, salt),
+    deriveMigrationKey(pin, salt),
+    deriveLegacyKey(pin),
+  ]);
+  encryptionKey = primary;
+  migrationKey = migration;
+  legacyKey = legacy;
 }
 
 export function isKeySet(): boolean {
@@ -132,18 +156,18 @@ export function constantTimeEqual(a: string, b: string): boolean {
   return result === 0;
 }
 
-export function hashPin(pin: string): string {
+export async function hashPin(pin: string): Promise<string> {
   const salt = getSalt();
-  return CryptoJS.PBKDF2(pin, CryptoJS.enc.Hex.parse(salt), { keySize: 8, iterations: ITERATIONS }).toString();
+  return pbkdf2Native(pin, hexToBytes(salt), ITERATIONS, 256);
 }
 
 export function legacyHashPin(pin: string): string {
   return CryptoJS.SHA256(pin).toString();
 }
 
-export function encryptDataWithPin(data: any, pin: string): string {
+export async function encryptDataWithPin(data: any, pin: string): Promise<string> {
   const exportSalt = CryptoJS.lib.WordArray.random(16).toString();
-  const tempKey = deriveKey(pin, exportSalt);
+  const tempKey = await deriveKey(pin, exportSalt);
   try {
     const jsonStr = JSON.stringify(data);
     const key = CryptoJS.enc.Hex.parse(tempKey);
@@ -163,7 +187,7 @@ export function encryptDataWithPin(data: any, pin: string): string {
   }
 }
 
-export function decryptDataWithPin(cipherText: string, pin: string): any {
+export async function decryptDataWithPin(cipherText: string, pin: string): Promise<any> {
   if (!cipherText) return null;
   try {
     let parsed: any;
@@ -171,8 +195,7 @@ export function decryptDataWithPin(cipherText: string, pin: string): any {
       parsed = JSON.parse(cipherText);
     } catch {
       // Legacy format without JSON wrapper — try 128-bit / 1000 iter key (passphrase mode)
-      const legacySalt = CryptoJS.enc.Utf8.parse('local-todo-manager-salt');
-      const tempKey = CryptoJS.PBKDF2(pin, legacySalt, { keySize: LEGACY_KEY_SIZE, iterations: 1000 }).toString();
+      const tempKey = await deriveLegacyKey(pin);
       const result = legacyDecryptPassphraseMode(cipherText, tempKey);
       if (!result) return null;
       return JSON.parse(result);
@@ -180,7 +203,7 @@ export function decryptDataWithPin(cipherText: string, pin: string): any {
 
     // v2 authenticated format with per-export salt
     if (parsed.v === FORMAT_VERSION && parsed.salt && parsed.iv && parsed.ct && parsed.mac) {
-      const tempKey = deriveKey(pin, parsed.salt);
+      const tempKey = await deriveKey(pin, parsed.salt);
       const hmacKey = deriveHmacKey(tempKey);
       const expectedMac = CryptoJS.HmacSHA256(parsed.iv + parsed.ct, hmacKey).toString();
       if (!constantTimeEqual(expectedMac, parsed.mac)) return null;
@@ -205,13 +228,13 @@ export function decryptDataWithPin(cipherText: string, pin: string): any {
 
     // Try 256-bit key first (passphrase mode)
     try {
-      const newKey = deriveKey(pin, salt);
+      const newKey = await deriveKey(pin, salt);
       const result = legacyDecryptPassphraseMode(encData, newKey);
       if (result) return JSON.parse(result);
     } catch { /* fall through */ }
 
     // Try 128-bit key with same salt + iterations (passphrase mode)
-    const oldKey = CryptoJS.PBKDF2(pin, CryptoJS.enc.Hex.parse(salt), { keySize: LEGACY_KEY_SIZE, iterations: ITERATIONS }).toString();
+    const oldKey = await deriveMigrationKey(pin, salt);
     const result = legacyDecryptPassphraseMode(encData, oldKey);
     if (!result) return null;
     return JSON.parse(result);
