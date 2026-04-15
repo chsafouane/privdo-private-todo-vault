@@ -85,26 +85,6 @@ async function cloudPull(config: SyncConfig): Promise<{
   deviceId?: string;
   updatedAt?: string;
 }> {
-  if (config.authMode === 'email') {
-    if (!supabase) throw new Error('Supabase not configured');
-    const { data, error } = await supabase
-      .from('sync_blobs')
-      .select('encrypted_data, version, device_id, updated_at')
-      .eq('channel_id', config.channelId)
-      .maybeSingle();
-
-    if (error) throw new Error(error.message);
-    if (!data) return { exists: false };
-    return {
-      exists: true,
-      encryptedData: data.encrypted_data,
-      version: data.version,
-      deviceId: data.device_id,
-      updatedAt: data.updated_at,
-    };
-  }
-
-  // Passphrase mode: use Edge Function
   if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase.functions.invoke('sync', {
     body: { action: 'pull', channelId: config.channelId },
@@ -118,53 +98,6 @@ async function cloudPush(
   encryptedData: string,
   version: number
 ): Promise<{ ok: boolean; version: number }> {
-  if (config.authMode === 'email') {
-    if (!supabase) throw new Error('Supabase not configured');
-
-    // Check if exists
-    const { data: existing } = await supabase
-      .from('sync_blobs')
-      .select('version')
-      .eq('channel_id', config.channelId)
-      .maybeSingle();
-
-    if (existing) {
-      if (version !== existing.version) {
-        throw new Error('VERSION_CONFLICT');
-      }
-      // Atomic update: include version in WHERE to prevent TOCTOU race
-      const { data: updated, error } = await supabase
-        .from('sync_blobs')
-        .update({
-          encrypted_data: encryptedData,
-          version: existing.version + 1,
-          device_id: config.deviceId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('channel_id', config.channelId)
-        .eq('version', existing.version)
-        .select('version')
-        .maybeSingle();
-
-      if (error) throw new Error(error.message);
-      if (!updated) throw new Error('VERSION_CONFLICT');
-      return { ok: true, version: existing.version + 1 };
-    } else {
-      const { error } = await supabase
-        .from('sync_blobs')
-        .insert({
-          channel_id: config.channelId,
-          encrypted_data: encryptedData,
-          version: 1,
-          device_id: config.deviceId,
-        });
-
-      if (error) throw new Error(error.message);
-      return { ok: true, version: 1 };
-    }
-  }
-
-  // Passphrase mode: use Edge Function
   if (!supabase) throw new Error('Supabase not configured');
   const { data, error } = await supabase.functions.invoke('sync', {
     body: {
@@ -394,25 +327,15 @@ export function useSyncEngine(
     return config;
   }, [setSyncConfig]);
 
-  const setupEmailSync = useCallback(async (email: string, password: string, passphrase: string, isSignUp: boolean) => {
+  const setupEmailSync = useCallback(async (email: string, password: string, passphrase: string) => {
     if (!supabase) throw new Error('Supabase not configured');
 
-    if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Authentication failed');
-
+    const channelId = deriveChannelId(email.toLowerCase().trim() + ':' + password);
     const syncKey = deriveSyncKey(passphrase);
     const config: SyncConfig = {
       enabled: true,
       authMode: 'email',
-      channelId: user.id,
+      channelId,
       syncKey,
       passphrase,
       deviceId: getDeviceId(),
@@ -422,13 +345,10 @@ export function useSyncEngine(
   }, [setSyncConfig]);
 
   const disconnect = useCallback(async () => {
-    if (syncConfig?.authMode === 'email' && supabase) {
-      await supabase.auth.signOut();
-    }
     setSyncConfig(null);
     localStorage.removeItem(SYNC_STATE_KEY);
     setSyncState({ status: 'disabled', lastSyncAt: null, lastSyncDeviceId: null, version: 0, error: null });
-  }, [syncConfig, setSyncConfig]);
+  }, [setSyncConfig]);
 
   return {
     syncConfig,

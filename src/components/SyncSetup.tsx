@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +17,7 @@ interface SyncSetupProps {
   open: boolean;
   onClose: () => void;
   onPassphraseSetup: (passphrase: string) => void;
-  onEmailSetup: (email: string, password: string, passphrase: string, isSignUp: boolean) => Promise<void>;
+  onEmailSetup: (email: string, password: string, passphrase: string) => Promise<void>;
 }
 
 export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: SyncSetupProps) {
@@ -28,7 +27,6 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailPassphrase, setEmailPassphrase] = useState('');
-  const [emailTab, setEmailTab] = useState<'signin' | 'signup'>('signin');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -75,6 +73,10 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
       setError('All fields are required.');
       return;
     }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
     if (emailPassphrase.trim().split(/\s+/).length < 6) {
       setError('Encryption passphrase must be at least 6 words.');
       return;
@@ -82,7 +84,7 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
     setLoading(true);
     setError('');
     try {
-      await onEmailSetup(email, password, emailPassphrase.trim(), emailTab === 'signup');
+      await onEmailSetup(email, password, emailPassphrase.trim());
       handleClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
@@ -193,36 +195,18 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
             <DialogHeader>
               <DialogTitle>Email Account</DialogTitle>
               <DialogDescription>
-                Sign in or create an account, then set an encryption passphrase.
+                Enter your email, a password, and an encryption passphrase to sync.
               </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
-              <Tabs value={emailTab} onValueChange={v => setEmailTab(v as 'signin' | 'signup')}>
-                <TabsList className="w-full">
-                  <TabsTrigger value="signin" className="flex-1">Sign In</TabsTrigger>
-                  <TabsTrigger value="signup" className="flex-1">Sign Up</TabsTrigger>
-                </TabsList>
-                <TabsContent value="signin" className="space-y-3 mt-3">
-                  <div>
-                    <Label htmlFor="email-in">Email</Label>
-                    <Input id="email-in" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
-                  </div>
-                  <div>
-                    <Label htmlFor="pass-in">Password</Label>
-                    <Input id="pass-in" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-                  </div>
-                </TabsContent>
-                <TabsContent value="signup" className="space-y-3 mt-3">
-                  <div>
-                    <Label htmlFor="email-up">Email</Label>
-                    <Input id="email-up" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
-                  </div>
-                  <div>
-                    <Label htmlFor="pass-up">Password</Label>
-                    <Input id="pass-up" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 8 characters" />
-                  </div>
-                </TabsContent>
-              </Tabs>
+              <div>
+                <Label htmlFor="email-field">Email</Label>
+                <Input id="email-field" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
+              </div>
+              <div>
+                <Label htmlFor="pass-field">Password</Label>
+                <Input id="pass-field" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 8 characters" />
+              </div>
               <div>
                 <Label htmlFor="sync-phrase">Encryption Passphrase</Label>
                 <textarea
@@ -243,7 +227,7 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
             <DialogFooter>
               <Button variant="secondary" onClick={() => { setStep('choose'); setError(''); }}>Back</Button>
               <Button onClick={handleEmailSubmit} disabled={loading}>
-                {loading ? 'Connecting...' : emailTab === 'signup' ? 'Sign Up & Connect' : 'Sign In & Connect'}
+                {loading ? 'Connecting...' : 'Connect'}
               </Button>
             </DialogFooter>
           </>
