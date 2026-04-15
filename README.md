@@ -8,7 +8,7 @@ Available as a **web app**, **PWA**, **macOS desktop app**, **Chrome/Brave exten
 
 - **Local Encryption** — All tasks encrypted with AES-256 (PBKDF2 key derivation, 600k iterations) before storage. Your PIN never leaves your device.
 - **End-to-End Encrypted Sync** — Optional cross-device sync via Supabase. The server only stores opaque encrypted blobs — it can never read your tasks.
-- **Two Sync Modes** — Passphrase-only (no account, maximum privacy) or Email account with a separate sync passphrase.
+- **Two Sync Modes** — Passphrase-only (no account, maximum privacy) or Email+password (easy to remember, same encryption guarantees).
 - **Multiple Lists** — Organize tasks into named lists with easy switching.
 - **Deadlines & Notifications** — Set due dates and get desktop notifications when tasks are overdue.
 - **Search & Sort** — Filter tasks by text, sort by date, deadline, or alphabetically.
@@ -41,14 +41,14 @@ Privdo supports optional end-to-end encrypted sync. All encryption happens on yo
 ### How It Works
 
 1. **Passphrase Mode** — Generate or enter a 12-word passphrase (BIP39, 128-bit entropy). The passphrase derives both a channel ID (SHA-256) and an encryption key (PBKDF2). No account or email needed.
-2. **Email Mode** — Sign up with email/password via Supabase Auth for identity, plus a separate sync passphrase for encryption. The auth password and encryption key are independent.
+2. **Email Mode** — Enter an email and password. Your credentials derive both the channel ID (SHA-256) and encryption key (PBKDF2) client-side using different salts. No Supabase Auth is involved — the server never receives your email or password.
 
 ### Setting Up Sync
 
 1. Click the cloud icon in the header toolbar
 2. Choose **Passphrase Only** (maximum privacy) or **Email Account**
 3. For passphrase mode: save the generated 12-word passphrase, then enter it on other devices
-4. For email mode: create an account and set a sync passphrase
+4. For email mode: enter the same email and password on all devices
 
 ### Sync Behavior
 
