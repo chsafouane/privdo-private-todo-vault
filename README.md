@@ -193,7 +193,7 @@ This builds the web app, syncs to the `android/` project, and opens Android Stud
 | **UI** | Radix UI primitives, Phosphor Icons |
 | **Build** | Vite + PWA plugin |
 | **Storage** | Localforage (IndexedDB) for web, filesystem for Electron |
-| **Crypto** | CryptoJS (AES-256, PBKDF2) + Web Crypto API (sync encryption) |
+| **Crypto** | CryptoJS (AES-256, PBKDF2) + Web Crypto API (local key derivation) |
 | **Sync** | Supabase (optional — E2E encrypted, zero-knowledge server) |
 | **Desktop** | Electron (macOS .dmg) |
 | **Mobile** | Capacitor (iOS + Android) |

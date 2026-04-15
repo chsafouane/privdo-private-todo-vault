@@ -114,8 +114,8 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
               {isSupabaseConfigured() && (
                 <Button variant="outline" className="w-full justify-start h-auto py-3 px-4" onClick={() => setStep('email')}>
                   <div className="text-left whitespace-normal min-w-0">
-                    <div className="font-medium">📧 Email Account</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">Sign in or create an account. Easier to manage.</div>
+                    <div className="font-medium">📧 Email & Password</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Use your email and a password. Easier to remember.</div>
                   </div>
                 </Button>
               )}
