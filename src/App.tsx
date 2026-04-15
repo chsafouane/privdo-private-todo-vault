@@ -374,27 +374,34 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     <div className="min-h-screen bg-background flex flex-col">
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex flex-col bg-card overflow-hidden">
-          <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-accent/5">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-foreground tracking-tight">{databaseName}</h1>
+          {/* Compact header */}
+          <div className="px-4 pt-4 pb-3 border-b border-border bg-gradient-to-br from-primary/5 to-accent/5">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg font-bold text-foreground tracking-tight truncate">{databaseName}</h1>
                   {activeTasks.length > 0 && (
-                    <Badge variant="secondary" className="text-sm">
-                      {activeTasks.length} active
+                    <Badge variant="secondary" className="text-xs flex-shrink-0">
+                      {activeTasks.length}
                     </Badge>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground font-mono truncate max-w-xs" title={isLoadedFile ? 'Loaded from file' : (storagePath || 'Browser local storage')}>
+                <p className="text-[10px] text-muted-foreground font-mono truncate" title={isLoadedFile ? 'Loaded from file' : (storagePath || 'Browser local storage')}>
                   {isLoadedFile ? 'Loaded from file' : (storagePath || 'Browser local storage')}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={() => setDarkMode(d => !d)} title="Toggle theme">
-                  {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setSearchOpen(o => !o); setSearchQuery('') }} title="Search">
+                  <MagnifyingGlass size={16} />
                 </Button>
-                <Button variant="outline" size="icon" onClick={triggerExport} title="Export Database">
-                  <DownloadSimple size={18} />
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cycleSortMode} title={`Sort: ${sortLabel}`}>
+                  <SortAscending size={16} />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDarkMode(d => !d)} title="Toggle theme">
+                  {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={triggerExport} title="Export">
+                  <DownloadSimple size={16} />
                 </Button>
                 <div className="relative">
                   <Input
@@ -404,14 +411,55 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                     onChange={triggerImport}
                     title="Import Database"
                   />
-                  <Button variant="outline" size="icon" className="pointer-events-none">
-                    <UploadSimple size={18} />
+                  <Button variant="ghost" size="icon" className="h-8 w-8 pointer-events-none">
+                    <UploadSimple size={16} />
                   </Button>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3">
+            {/* Sort indicator pill */}
+            {sortMode !== 'created' && (
+              <div className="flex items-center gap-1 mb-2">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent-foreground font-medium">
+                  Sorted by {sortLabel}
+                </span>
+              </div>
+            )}
+
+            {/* Search bar (expandable) */}
+            <AnimatePresence>
+              {searchOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="relative flex-1">
+                      <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Search tasks..."
+                        className="h-9 pl-8 text-sm bg-background"
+                        autoFocus
+                      />
+                      {searchQuery && (
+                        <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Desktop add task form */}
+            <div className="hidden sm:flex flex-col sm:flex-row gap-2">
               <div className="flex-1 flex gap-2 w-full">
                 <Input
                   id="new-task-input"
@@ -421,7 +469,7 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                     if (e.key === 'Enter' && newTaskText.trim()) addTask()
                   }}
                   placeholder="Add a new task..."
-                  className="flex-1 h-12 text-base bg-background min-w-0"
+                  className="flex-1 h-10 text-sm bg-background min-w-0"
                   autoFocus
                 />
                 <Input
@@ -431,34 +479,78 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && newTaskText.trim()) addTask()
                   }}
-                  className="flex-shrink-0 h-12 w-fit bg-background text-sm text-foreground items-center"
+                  className="flex-shrink-0 h-10 w-fit bg-background text-sm text-foreground items-center"
                   aria-label="Set a deadline (optional)"
                 />
               </div>
               <Button
                 onClick={addTask}
                 disabled={!newTaskText.trim()}
-                className="h-12 w-full sm:w-auto px-6 gap-2"
+                className="h-10 px-5 gap-1.5 text-sm"
               >
-                <Plus size={20} weight="bold" />
+                <Plus size={18} weight="bold" />
                 Add
               </Button>
             </div>
+
+            {/* Mobile inline add form (slides open from FAB) */}
+            <AnimatePresence>
+              {addOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="sm:hidden overflow-hidden"
+                >
+                  <div className="flex flex-col gap-2 pt-2">
+                    <Input
+                      value={newTaskText}
+                      onChange={(e) => setNewTaskText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newTaskText.trim()) addTask()
+                      }}
+                      placeholder="What needs to be done?"
+                      className="h-10 text-sm bg-background"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <Input
+                        type="datetime-local"
+                        value={newTaskDeadline}
+                        onChange={(e) => setNewTaskDeadline(e.target.value)}
+                        className="flex-1 h-9 bg-background text-sm text-foreground"
+                        aria-label="Set a deadline (optional)"
+                      />
+                      <Button onClick={addTask} disabled={!newTaskText.trim()} className="h-9 px-4 gap-1 text-sm">
+                        <Plus size={16} weight="bold" />
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          <div className="flex-1 p-6 space-y-6 overflow-y-auto">
-            {(tasks || []).length === 0 ? (
+          <div className="flex-1 p-4 space-y-4 overflow-y-auto pb-24 sm:pb-4">
+            {liveTasks.length === 0 ? (
               <div className="text-center py-16 px-4">
                 <div className="w-16 h-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
                   <Plus size={32} className="text-muted-foreground" />
                 </div>
                 <p className="text-muted-foreground font-medium">No tasks yet</p>
-                <p className="text-sm text-muted-foreground mt-1">Add your first task above to get started</p>
+                <p className="text-sm text-muted-foreground mt-1">Add your first task to get started</p>
+              </div>
+            ) : activeTasks.length === 0 && completedTasks.length === 0 && searchQuery ? (
+              <div className="text-center py-12 px-4">
+                <p className="text-muted-foreground font-medium">No matching tasks</p>
+                <p className="text-sm text-muted-foreground mt-1">Try a different search term</p>
               </div>
             ) : (
               <>
                 {activeTasks.length > 0 && (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <AnimatePresence mode="popLayout">
                       {activeTasks.map((task) => (
                         <motion.div
@@ -468,108 +560,116 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, x: -100 }}
                           transition={{ duration: 0.2 }}
-                          drag="x"
-                          dragConstraints={{ left: 0, right: 0 }}
-                          dragElastic={0.3}
-                          onDragEnd={(_e, info) => {
-                            if (info.offset.x < -120) deleteTask(task.id)
-                          }}
-                          className="group flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors touch-pan-y"
+                          className="relative"
                         >
-                          <Checkbox
-                            id={`task-${task.id}`}
-                            checked={task.completed}
-                            onCheckedChange={() => toggleTask(task.id)}
-                            className="mt-0.5"
-                          />
-                          
-                          {editingId === task.id ? (
-                            <div className="flex-1 flex flex-col gap-2">
-                              <Input
-                                value={editText}
-                                onChange={(e) => setEditText(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') saveEdit()
-                                  if (e.key === 'Escape') cancelEdit()
-                                }}
-                                onBlur={(e) => {
-                                  if (!e.relatedTarget?.closest('[data-edit-deadline]')) saveEdit()
-                                }}
-                                className="flex-1 h-9"
-                                autoFocus
-                              />
-                              <div className="flex items-center gap-2">
-                                <Clock size={14} className="text-muted-foreground flex-shrink-0" />
+                          {/* Swipe delete background */}
+                          <div className="absolute inset-0 rounded-lg bg-destructive/10 flex items-center justify-end pr-4 pointer-events-none">
+                            <Trash size={18} className="text-destructive" />
+                          </div>
+                          <motion.div
+                            drag="x"
+                            dragConstraints={{ left: 0, right: 0 }}
+                            dragElastic={0.25}
+                            onDragEnd={(_e, info) => {
+                              if (info.offset.x < -100) deleteTask(task.id)
+                            }}
+                            className="group flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/50 transition-colors touch-pan-y relative"
+                          >
+                            <Checkbox
+                              id={`task-${task.id}`}
+                              checked={task.completed}
+                              onCheckedChange={() => toggleTask(task.id)}
+                              className="mt-0.5 flex-shrink-0"
+                            />
+                            
+                            {editingId === task.id ? (
+                              <div className="flex-1 flex flex-col gap-2">
                                 <Input
-                                  type="datetime-local"
-                                  data-edit-deadline
-                                  value={editDeadline}
-                                  onChange={(e) => setEditDeadline(e.target.value)}
+                                  value={editText}
+                                  onChange={(e) => setEditText(e.target.value)}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') saveEdit()
                                     if (e.key === 'Escape') cancelEdit()
                                   }}
                                   onBlur={(e) => {
-                                    if (!e.relatedTarget?.closest('[data-edit-deadline]') && e.relatedTarget?.tagName !== 'INPUT') saveEdit()
+                                    if (!e.relatedTarget?.closest('[data-edit-deadline]')) saveEdit()
                                   }}
-                                  className="h-8 w-fit text-xs bg-background"
+                                  className="flex-1 h-9"
+                                  autoFocus
                                 />
-                                {editDeadline && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
+                                <div className="flex items-center gap-2">
+                                  <Clock size={14} className="text-muted-foreground flex-shrink-0" />
+                                  <Input
+                                    type="datetime-local"
                                     data-edit-deadline
-                                    onClick={() => setEditDeadline('')}
-                                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                    title="Remove deadline"
-                                  >
-                                    <Trash size={12} />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex-1 flex flex-col min-w-0">
-                              <label
-                                htmlFor={`task-${task.id}`}
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  startEdit(task)
-                                }}
-                                className="text-base text-foreground cursor-pointer select-none truncate"
-                              >
-                                {task.text}
-                              </label>
-                              {task.deadline && (
-                                <div className="flex items-center gap-1.5 text-xs mt-1">
-                                  {new Date(task.deadline).getTime() < Date.now() ? (
-                                    <>
-                                      <Clock size={14} weight="bold" className="text-destructive" />
-                                      <span className="text-destructive font-medium">
-                                        {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Clock size={14} className="text-muted-foreground" />
-                                      <span className="text-muted-foreground">
-                                        {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                      </span>
-                                    </>
+                                    value={editDeadline}
+                                    onChange={(e) => setEditDeadline(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') saveEdit()
+                                      if (e.key === 'Escape') cancelEdit()
+                                    }}
+                                    onBlur={(e) => {
+                                      if (!e.relatedTarget?.closest('[data-edit-deadline]') && e.relatedTarget?.tagName !== 'INPUT') saveEdit()
+                                    }}
+                                    className="h-8 w-fit text-xs bg-background"
+                                  />
+                                  {editDeadline && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      data-edit-deadline
+                                      onClick={() => setEditDeadline('')}
+                                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                      title="Remove deadline"
+                                    >
+                                      <Trash size={12} />
+                                    </Button>
                                   )}
                                 </div>
-                              )}
-                            </div>
-                          )}
+                              </div>
+                            ) : (
+                              <div className="flex-1 flex flex-col min-w-0">
+                                <label
+                                  htmlFor={`task-${task.id}`}
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    startEdit(task)
+                                  }}
+                                  className="text-sm text-foreground cursor-pointer select-none truncate"
+                                >
+                                  {task.text}
+                                </label>
+                                {task.deadline && (
+                                  <div className="flex items-center gap-1 text-[11px] mt-0.5">
+                                    {new Date(task.deadline).getTime() < Date.now() ? (
+                                      <>
+                                        <Clock size={12} weight="bold" className="text-destructive" />
+                                        <span className="text-destructive font-medium">
+                                          {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Clock size={12} className="text-muted-foreground" />
+                                        <span className="text-muted-foreground">
+                                          {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteTask(task.id)}
-                            className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash size={18} />
-                          </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteTask(task.id)}
+                              className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-7 w-7 text-muted-foreground hover:text-destructive flex-shrink-0"
+                            >
+                              <Trash size={16} />
+                            </Button>
+                          </motion.div>
                         </motion.div>
                       ))}
                     </AnimatePresence>
@@ -578,16 +678,16 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
 
                 {completedTasks.length > 0 && (
                   <>
-                    {activeTasks.length > 0 && <Separator className="my-6" />}
+                    {activeTasks.length > 0 && <Separator className="my-4" />}
                     
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between px-3 mb-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between px-3 mb-2">
                         <button
                           onClick={() => setCompletedCollapsed(c => !c)}
-                          className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <motion.div animate={{ rotate: completedCollapsed ? -90 : 0 }} transition={{ duration: 0.15 }}>
-                            <CaretDown size={14} weight="bold" />
+                            <CaretDown size={12} weight="bold" />
                           </motion.div>
                           Completed ({completedTasks.length})
                         </button>
@@ -595,10 +695,10 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                           variant="ghost"
                           size="sm"
                           onClick={clearCompleted}
-                          className="h-7 text-xs text-muted-foreground hover:text-destructive gap-1"
+                          className="h-6 text-[11px] text-muted-foreground hover:text-destructive gap-1"
                         >
-                          <TrashSimple size={14} />
-                          Clear all
+                          <TrashSimple size={12} />
+                          Clear
                         </Button>
                       </div>
                       <AnimatePresence mode="popLayout">
@@ -616,19 +716,19 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                               id={`task-${task.id}`}
                               checked={task.completed}
                               onCheckedChange={() => toggleTask(task.id)}
-                              className="mt-0.5"
+                              className="mt-0.5 flex-shrink-0"
                             />
                             
                             <div className="flex-1 flex flex-col min-w-0">
                               <label
                                 htmlFor={`task-${task.id}`}
-                                className="text-base text-muted-foreground line-through cursor-pointer select-none truncate"
+                                className="text-sm text-muted-foreground line-through cursor-pointer select-none truncate"
                               >
                                 {task.text}
                               </label>
                               {task.deadline && (
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60 mt-1">
-                                  <Clock size={14} />
+                                <div className="flex items-center gap-1 text-[11px] text-muted-foreground/60 mt-0.5">
+                                  <Clock size={12} />
                                   <span>
                                     {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                                   </span>
@@ -640,9 +740,9 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                               variant="ghost"
                               size="icon"
                               onClick={() => deleteTask(task.id)}
-                              className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
+                              className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-7 w-7 text-muted-foreground hover:text-destructive flex-shrink-0"
                             >
-                              <Trash size={18} />
+                              <Trash size={16} />
                             </Button>
                           </motion.div>
                         ))}
@@ -651,7 +751,7 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                   </>
                 )}
 
-                {activeTasks.length === 0 && completedTasks.length > 0 && (
+                {activeTasks.length === 0 && completedTasks.length > 0 && !searchQuery && (
                   <div className="text-center py-8 px-4">
                     <div className="w-16 h-16 rounded-full bg-accent/10 mx-auto mb-4 flex items-center justify-center">
                       <motion.div
@@ -670,13 +770,27 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
             )}
           </div>
 
-          <div className="px-6 py-4 border-t border-border bg-muted/30">
-            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <LockKey size={16} weight="fill" className="text-accent" />
-              <span>All data is stored locally and encrypted on your device</span>
+          {/* Footer */}
+          <div className="px-4 py-3 border-t border-border bg-muted/30">
+            <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
+              <LockKey size={14} weight="fill" className="text-accent" />
+              <span>Encrypted & stored locally</span>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Mobile FAB */}
+      <div className="sm:hidden fixed bottom-6 right-4 z-50">
+        <Button
+          onClick={() => setAddOpen(o => !o)}
+          size="icon"
+          className="h-14 w-14 rounded-full shadow-lg"
+        >
+          <motion.div animate={{ rotate: addOpen ? 45 : 0 }} transition={{ duration: 0.15 }}>
+            <Plus size={24} weight="bold" />
+          </motion.div>
+        </Button>
       </div>
       
       <Dialog open={pinDialogMode !== null} onOpenChange={(open) => {
