@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, Broadcast, Crown, CloudArrowUp, CloudCheck } from '@phosphor-icons/react'
+import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, Broadcast } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -11,9 +11,6 @@ import { encryptDataWithPin, decryptDataWithPin, clearEncryptionKey } from '@/li
 import { Task, SortMode, isValidTaskArray } from '@/types'
 import { PinScreen } from '@/components/PinScreen'
 import { syncWidgetData } from '@/lib/widgetSync'
-import { LicenseDialog } from '@/components/LicenseDialog'
-import { isPro, getLicenseInfo } from '@/lib/license'
-import { useCloudSync } from '@/hooks/useCloudSync'
 import { useTaskManager } from '@/hooks/useTaskManager'
 import { TaskItem } from '@/components/TaskItem'
 import { AddTaskForm } from '@/components/AddTaskForm'
@@ -33,9 +30,6 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
 
   // Widget sync (opt-in, off by default)
   const [widgetSync, setWidgetSync] = useState(() => localStorage.getItem('widgetSync') === 'true')
-
-  // Cloud sync hook
-  const { syncing, proStatus, setProStatus, licenseDialogOpen, setLicenseDialogOpen } = useCloudSync({ tasks, setTasks, isReady })
 
   // Task CRUD hook
   const {
@@ -330,21 +324,6 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                 <Button variant="ghost" size="icon" className={`h-8 w-8 ${widgetSync ? 'text-accent' : ''}`} onClick={toggleWidgetSync} title={widgetSync ? 'Home screen widget on' : 'Home screen widget off'}>
                   <Broadcast size={16} weight={widgetSync ? 'fill' : 'regular'} />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`h-8 w-8 ${proStatus ? 'text-yellow-500' : ''}`}
-                  onClick={() => setLicenseDialogOpen(true)}
-                  title={proStatus ? 'Pro — Cloud sync active' : 'Upgrade to Pro'}
-                >
-                  {syncing ? (
-                    <CloudArrowUp size={16} className="animate-pulse" />
-                  ) : proStatus ? (
-                    <Crown size={16} weight="fill" />
-                  ) : (
-                    <CloudCheck size={16} />
-                  )}
-                </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDarkMode(d => !d)} title="Toggle theme">
                   {darkMode ? <Sun size={16} /> : <Moon size={16} />}
                 </Button>
@@ -413,7 +392,6 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
               onTextChange={setNewTaskText}
               onDeadlineChange={setNewTaskDeadline}
               onAdd={addTask}
-              onToggleOpen={setAddOpen}
             />
           </div>
 
@@ -527,18 +505,11 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
           <div className="px-4 py-3 border-t border-border bg-muted/30">
             <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
               <LockKey size={14} weight="fill" className="text-accent" />
-              <span>{proStatus ? 'Encrypted & synced to cloud' : 'Encrypted & stored locally'}</span>
-              {proStatus && getLicenseInfo().lastSync && (
-                <span className="text-muted-foreground/60">
-                  · {new Date(getLicenseInfo().lastSync!).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                </span>
-              )}
+              <span>Encrypted & stored locally</span>
             </div>
           </div>
         </div>
       </div>
-
-      <LicenseDialog open={licenseDialogOpen} onOpenChange={setLicenseDialogOpen} onStatusChange={() => setProStatus(isPro())} />
 
       {/* Mobile FAB */}
       <div className="sm:hidden fixed bottom-6 right-4 z-50">
