@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, Broadcast } from '@phosphor-icons/react'
+import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, Broadcast, CloudCheck } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -15,6 +15,10 @@ import { useTaskManager } from '@/hooks/useTaskManager'
 import { TaskItem } from '@/components/TaskItem'
 import { AddTaskForm } from '@/components/AddTaskForm'
 import { PinDialog } from '@/components/PinDialog'
+import { SyncSetup } from '@/components/SyncSetup'
+import { SyncSettings } from '@/components/SyncSettings'
+import { SyncStatusIcon } from '@/components/SyncStatusIcon'
+import { useSyncEngine } from '@/hooks/useSyncEngine'
 
 function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: string | null; databaseName: string; loadedTasks?: Task[] | null }) {
   const [tasks, setTasks, isReady] = useEncryptedStorage<Task[]>('tasks', [], storagePath)
@@ -39,6 +43,19 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
     addTask: addTaskBase, toggleTask, deleteTask, clearCompleted,
     startEdit, saveEdit, cancelEdit,
   } = useTaskManager({ tasks, setTasks })
+
+  // Sync engine
+  const {
+    syncConfig,
+    syncState,
+    performSync,
+    setupPassphraseSync,
+    setupEmailSync,
+    disconnect: disconnectSync,
+  } = useSyncEngine(tasks, setTasks, isReady)
+
+  const [syncSetupOpen, setSyncSetupOpen] = useState(false)
+  const [syncSettingsOpen, setSyncSettingsOpen] = useState(false)
 
   const addTask = () => {
     addTaskBase()
@@ -324,6 +341,10 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                 <Button variant="ghost" size="icon" className={`h-8 w-8 ${widgetSync ? 'text-accent' : ''}`} onClick={toggleWidgetSync} title={widgetSync ? 'Home screen widget on' : 'Home screen widget off'}>
                   <Broadcast size={16} weight={widgetSync ? 'fill' : 'regular'} />
                 </Button>
+                <SyncStatusIcon
+                  status={syncConfig?.enabled ? syncState.status : 'disabled'}
+                  onClick={() => syncConfig?.enabled ? setSyncSettingsOpen(true) : setSyncSetupOpen(true)}
+                />
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDarkMode(d => !d)} title="Toggle theme">
                   {darkMode ? <Sun size={16} /> : <Moon size={16} />}
                 </Button>
@@ -506,6 +527,13 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
             <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
               <LockKey size={14} weight="fill" className="text-accent" />
               <span>Encrypted & stored locally</span>
+              {syncConfig?.enabled && (
+                <>
+                  <span>·</span>
+                  <CloudCheck size={14} className="text-green-500" />
+                  <span>Synced</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -530,6 +558,34 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
         onPinChange={setPinDialogValue}
         onClose={handlePinDialogClose}
         onConfirm={handlePinDialogConfirm}
+      />
+
+      <SyncSetup
+        open={syncSetupOpen}
+        onClose={() => setSyncSetupOpen(false)}
+        onPassphraseSetup={(passphrase) => {
+          setupPassphraseSync(passphrase)
+          toast.success('Sync enabled')
+        }}
+        onEmailSetup={async (email, password, passphrase, isSignUp) => {
+          await setupEmailSync(email, password, passphrase, isSignUp)
+          toast.success('Sync enabled')
+        }}
+      />
+
+      <SyncSettings
+        open={syncSettingsOpen}
+        onClose={() => setSyncSettingsOpen(false)}
+        syncConfig={syncConfig}
+        syncStatus={syncState.status}
+        lastSyncAt={syncState.lastSyncAt}
+        error={syncState.error}
+        onSync={performSync}
+        onDisconnect={() => {
+          disconnectSync()
+          toast('Sync disconnected')
+        }}
+        onSetup={() => setSyncSetupOpen(true)}
       />
     </div>
   )
