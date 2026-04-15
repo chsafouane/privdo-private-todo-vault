@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, Trash, LockKey, Clock, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, ArrowCounterClockwise, Broadcast } from '@phosphor-icons/react'
+import { Plus, Trash, LockKey, Clock, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, SortAscending, X, ArrowCounterClockwise, Broadcast, Crown, CloudArrowUp, CloudArrowDown, CloudCheck } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -8,10 +8,12 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEncryptedStorage } from '@/lib/useEncryptedTasks'
-import { encryptDataWithPin, decryptDataWithPin, clearEncryptionKey } from '@/lib/encryption'
+import { encryptDataWithPin, decryptDataWithPin, clearEncryptionKey, encryptData, decryptData } from '@/lib/encryption'
 import { PinScreen } from '@/components/PinScreen'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { syncWidgetData } from '@/lib/widgetSync'
+import { LicenseDialog } from '@/components/LicenseDialog'
+import { isPro, syncPush, syncPull, getLicenseInfo } from '@/lib/license'
 
 interface Task {
   id: string
@@ -48,6 +50,65 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
 
   // Widget sync (opt-in, off by default)
   const [widgetSync, setWidgetSync] = useState(() => localStorage.getItem('widgetSync') === 'true')
+
+  // Cloud sync state
+  const [licenseDialogOpen, setLicenseDialogOpen] = useState(false)
+  const [proStatus, setProStatus] = useState(() => isPro())
+  const [syncing, setSyncing] = useState(false)
+  const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cloud sync: pull on mount if Pro
+  useEffect(() => {
+    if (!proStatus || !isReady) return
+    handleCloudPull(true)
+  }, [proStatus, isReady]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cloud sync: debounced push when tasks change
+  useEffect(() => {
+    if (!proStatus || !isReady || !tasks) return
+    if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current)
+    syncDebounceRef.current = setTimeout(() => {
+      handleCloudPush()
+    }, 3000) // Push 3 seconds after last change
+    return () => { if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current) }
+  }, [tasks, proStatus, isReady]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCloudPush = async () => {
+    if (!tasks || syncing) return
+    setSyncing(true)
+    try {
+      const blob = encryptData(tasks)
+      const result = await syncPush(blob)
+      if (!result.success && result.error === 'conflict') {
+        toast('Sync conflict — pulling latest from cloud', { duration: 3000 })
+        await handleCloudPull(false)
+      } else if (!result.success) {
+        // Silent fail — local data is safe
+      }
+    } catch {
+      // Silent network error
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const handleCloudPull = async (silent: boolean) => {
+    setSyncing(true)
+    try {
+      const result = await syncPull()
+      if (result.success && result.encryptedBlob) {
+        const pulled = decryptData(result.encryptedBlob)
+        if (Array.isArray(pulled)) {
+          setTasks(pulled)
+          if (!silent) toast.success('Synced from cloud')
+        }
+      }
+    } catch {
+      if (!silent) toast.error('Sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   // If tasks were loaded from an external file, use those instead
   useEffect(() => {
@@ -132,9 +193,9 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
       localStorage.setItem('widgetSync', String(next))
       if (next && tasks) {
         syncWidgetData(tasks).catch(() => {})
-        toast.success('Widget sync enabled')
+        toast.success('Home screen widget enabled')
       } else {
-        toast('Widget sync disabled')
+        toast('Home screen widget disabled')
       }
       return next
     })
@@ -421,8 +482,23 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cycleSortMode} title={`Sort: ${sortLabel}`}>
                   <SortAscending size={16} />
                 </Button>
-                <Button variant="ghost" size="icon" className={`h-8 w-8 ${widgetSync ? 'text-accent' : ''}`} onClick={toggleWidgetSync} title={widgetSync ? 'Widget sync on' : 'Widget sync off'}>
+                <Button variant="ghost" size="icon" className={`h-8 w-8 ${widgetSync ? 'text-accent' : ''}`} onClick={toggleWidgetSync} title={widgetSync ? 'Home screen widget on' : 'Home screen widget off'}>
                   <Broadcast size={16} weight={widgetSync ? 'fill' : 'regular'} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-8 w-8 ${proStatus ? 'text-yellow-500' : ''}`}
+                  onClick={() => setLicenseDialogOpen(true)}
+                  title={proStatus ? 'Pro — Cloud sync active' : 'Upgrade to Pro'}
+                >
+                  {syncing ? (
+                    <CloudArrowUp size={16} className="animate-pulse" />
+                  ) : proStatus ? (
+                    <Crown size={16} weight="fill" />
+                  ) : (
+                    <CloudCheck size={16} />
+                  )}
                 </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDarkMode(d => !d)} title="Toggle theme">
                   {darkMode ? <Sun size={16} /> : <Moon size={16} />}
@@ -801,11 +877,18 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
           <div className="px-4 py-3 border-t border-border bg-muted/30">
             <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
               <LockKey size={14} weight="fill" className="text-accent" />
-              <span>Encrypted & stored locally</span>
+              <span>{proStatus ? 'Encrypted & synced to cloud' : 'Encrypted & stored locally'}</span>
+              {proStatus && getLicenseInfo().lastSync && (
+                <span className="text-muted-foreground/60">
+                  · {new Date(getLicenseInfo().lastSync!).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                </span>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      <LicenseDialog open={licenseDialogOpen} onOpenChange={setLicenseDialogOpen} onStatusChange={() => setProStatus(isPro())} />
 
       {/* Mobile FAB */}
       <div className="sm:hidden fixed bottom-6 right-4 z-50">
