@@ -567,8 +567,8 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
           setupPassphraseSync(passphrase)
           toast.success('Sync enabled')
         }}
-        onEmailSetup={async (email, password, passphrase) => {
-          await setupEmailSync(email, password, passphrase)
+        onEmailSetup={async (email, password) => {
+          await setupEmailSync(email, password)
           toast.success('Sync enabled')
         }}
       />

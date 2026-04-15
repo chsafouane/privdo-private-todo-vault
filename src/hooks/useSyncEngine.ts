@@ -327,17 +327,17 @@ export function useSyncEngine(
     return config;
   }, [setSyncConfig]);
 
-  const setupEmailSync = useCallback(async (email: string, password: string, passphrase: string) => {
+  const setupEmailSync = useCallback(async (email: string, password: string) => {
     if (!supabase) throw new Error('Supabase not configured');
 
-    const channelId = deriveChannelId(email.toLowerCase().trim() + ':' + password);
-    const syncKey = deriveSyncKey(passphrase);
+    const normalized = email.toLowerCase().trim() + ':' + password;
+    const channelId = deriveChannelId(normalized);
+    const syncKey = deriveSyncKey(normalized);
     const config: SyncConfig = {
       enabled: true,
       authMode: 'email',
       channelId,
       syncKey,
-      passphrase,
       deviceId: getDeviceId(),
     };
     setSyncConfig(config);

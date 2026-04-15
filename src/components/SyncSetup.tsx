@@ -17,7 +17,7 @@ interface SyncSetupProps {
   open: boolean;
   onClose: () => void;
   onPassphraseSetup: (passphrase: string) => void;
-  onEmailSetup: (email: string, password: string, passphrase: string) => Promise<void>;
+  onEmailSetup: (email: string, password: string) => Promise<void>;
 }
 
 export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: SyncSetupProps) {
@@ -26,7 +26,6 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
   const [inputPassphrase, setInputPassphrase] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [emailPassphrase, setEmailPassphrase] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,7 +35,6 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
     setInputPassphrase('');
     setEmail('');
     setPassword('');
-    setEmailPassphrase('');
     setError('');
     setLoading(false);
   };
@@ -69,7 +67,7 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
   };
 
   const handleEmailSubmit = async () => {
-    if (!email || !password || !emailPassphrase.trim()) {
+    if (!email || !password) {
       setError('All fields are required.');
       return;
     }
@@ -77,17 +75,13 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
       setError('Password must be at least 8 characters.');
       return;
     }
-    if (emailPassphrase.trim().split(/\s+/).length < 6) {
-      setError('Encryption passphrase must be at least 6 words.');
-      return;
-    }
     setLoading(true);
     setError('');
     try {
-      await onEmailSetup(email, password, emailPassphrase.trim());
+      await onEmailSetup(email, password);
       handleClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication failed');
+      setError(err instanceof Error ? err.message : 'Connection failed');
     } finally {
       setLoading(false);
     }
@@ -195,7 +189,7 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
             <DialogHeader>
               <DialogTitle>Email Account</DialogTitle>
               <DialogDescription>
-                Enter your email, a password, and an encryption passphrase to sync.
+                Enter your email and a password to sync. Your data is encrypted using your credentials — the server never sees your tasks.
               </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
@@ -206,20 +200,8 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
               <div>
                 <Label htmlFor="pass-field">Password</Label>
                 <Input id="pass-field" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 8 characters" />
-              </div>
-              <div>
-                <Label htmlFor="sync-phrase">Encryption Passphrase</Label>
-                <textarea
-                  id="sync-phrase"
-                  className="w-full min-h-[60px] rounded-lg border border-input bg-background p-3 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring mt-1"
-                  value={emailPassphrase}
-                  onChange={e => setEmailPassphrase(e.target.value)}
-                  placeholder="Enter or paste your encryption passphrase..."
-                  autoComplete="off"
-                  data-1p-ignore
-                />
                 <p className="text-xs text-muted-foreground mt-1">
-                  This encrypts your data. Use the same passphrase on all devices.
+                  Use the same email and password on all devices to sync.
                 </p>
               </div>
               {error && <p className="text-xs text-destructive">{error}</p>}
