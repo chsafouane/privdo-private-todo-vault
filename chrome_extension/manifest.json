@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Privdo",
+  "description": "Encrypted local todo manager — all data stays on your device",
+  "version": "1.0.0",
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "pwa-192x192.png",
+      "48": "pwa-192x192.png",
+      "128": "pwa-512x512.png"
+    }
+  },
+  "icons": {
+    "16": "pwa-192x192.png",
+    "48": "pwa-192x192.png",
+    "128": "pwa-512x512.png"
+  },
+  "permissions": ["storage"]
+}
