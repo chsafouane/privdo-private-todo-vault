@@ -118,8 +118,8 @@ function MainApp({ storagePath, databaseName, loadedTasks }: { storagePath: stri
           if (now >= dl && !notifiedTasks.current.has(task.id)) {
             notifiedTasks.current.add(task.id)
             if ("Notification" in window && Notification.permission === "granted") {
-              new Notification("Task Reminder: " + task.text, {
-                body: "Your task deadline has passed.",
+              new Notification("Privdo: Task deadline passed", {
+                body: "A task deadline has passed. Open the app to check.",
                 icon: "/favicon.ico"
               })
             }

@@ -1,15 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { LockKey, Keyhole, FolderOpen, FileArrowUp } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { hashPin, legacyHashPin, setEncryptionKeyFromPin, decryptDataWithPin } from '@/lib/encryption';
+import { hashPin, legacyHashPin, setEncryptionKeyFromPin, decryptDataWithPin, constantTimeEqual } from '@/lib/encryption';
+import { isValidTaskArray } from '@/types';
 import { toast } from 'sonner';
 
 interface PinScreenProps {
   onUnlock: (pinTargetHash: string, folderPath: string | null, dbName?: string) => void;
   onLoadFile: (tasks: any[], fileName: string) => void;
 }
+
+const MAX_ATTEMPTS = 10;
+const BASE_DELAY_MS = 1000;
 
 export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
   const [pin, setPin] = useState('');
@@ -20,6 +24,42 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
   const [loadFilePin, setLoadFilePin] = useState('');
   const [pendingFile, setPendingFile] = useState<{ content: any; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Brute force protection state
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isLockedOut = lockedUntil !== null && Date.now() < lockedUntil;
+
+  // Countdown timer for lockout display
+  const [lockSeconds, setLockSeconds] = useState(0);
+  useEffect(() => {
+    if (!lockedUntil) { setLockSeconds(0); return; }
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
+      setLockSeconds(remaining);
+      if (remaining <= 0) setLockedUntil(null);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [lockedUntil]);
+
+  const applyFailedAttemptPenalty = useCallback(() => {
+    setFailedAttempts(prev => {
+      const next = prev + 1;
+      if (next >= MAX_ATTEMPTS) {
+        setLockedUntil(Date.now() + 60_000);
+        toast.error('Too many failed attempts. Locked for 60 seconds.');
+      } else if (next >= 3) {
+        const delay = BASE_DELAY_MS * Math.pow(2, next - 3);
+        setLockedUntil(Date.now() + delay);
+        toast.error(`Incorrect PIN. Wait ${Math.ceil(delay / 1000)}s before retrying.`);
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     async function loadConfig() {
@@ -59,15 +99,23 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
       toast.error('PIN must be at least 4 digits');
       return;
     }
+    if (isLockedOut) {
+      toast.error(`Locked. Wait ${lockSeconds}s before retrying.`);
+      return;
+    }
     if (isElectron && isSetup && !storagePath) {
       toast.error('Please select a storage folder first.');
       return;
     }
 
-    const currentHash = hashPin(pin);
+    setIsSubmitting(true);
+    const currentPin = pin;
+    setPin(''); // Clear PIN from state immediately
+
+    const currentHash = hashPin(currentPin);
 
     if (isSetup) {
-      setEncryptionKeyFromPin(pin);
+      setEncryptionKeyFromPin(currentPin);
       
       if (isElectron) {
         await (window as any).electron.invoke('save-config', { pinHash: currentHash });
@@ -76,26 +124,31 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
       }
       
       toast.success('PIN created. Keys generated.');
+      setIsSubmitting(false);
       onUnlock(currentHash, storagePath);
     } else {
-      if (currentHash === storedHash) {
-        setEncryptionKeyFromPin(pin);
+      if (storedHash && constantTimeEqual(currentHash, storedHash)) {
+        setEncryptionKeyFromPin(currentPin);
+        setFailedAttempts(0);
+        setIsSubmitting(false);
         onUnlock(currentHash, storagePath);
       } else {
         // Try legacy SHA-256 hash for pre-migration users
-        const legacyHash = legacyHashPin(pin);
-        if (legacyHash === storedHash) {
-          setEncryptionKeyFromPin(pin);
+        const legacyHash = legacyHashPin(currentPin);
+        if (storedHash && constantTimeEqual(legacyHash, storedHash)) {
+          setEncryptionKeyFromPin(currentPin);
           // Migrate stored hash to PBKDF2
           if (isElectron) {
             await (window as any).electron.invoke('save-config', { pinHash: currentHash });
           } else {
             localStorage.setItem('web-auth-hash', currentHash);
           }
+          setFailedAttempts(0);
+          setIsSubmitting(false);
           onUnlock(currentHash, storagePath);
         } else {
-          toast.error('Incorrect PIN.');
-          setPin('');
+          applyFailedAttemptPenalty();
+          setIsSubmitting(false);
         }
       }
     }
@@ -113,7 +166,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
         if (content && content.encryptedData) {
           setPendingFile({ content, name: fileName });
           setLoadFilePin('');
-        } else if (Array.isArray(content)) {
+        } else if (isValidTaskArray(content)) {
           onLoadFile(content, fileName);
         } else {
           toast.error('Invalid task file format');
@@ -128,14 +181,20 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
 
   const handleLoadFileDecrypt = () => {
     if (!pendingFile || loadFilePin.length < 4) return;
-    const decrypted = decryptDataWithPin(pendingFile.content.encryptedData, loadFilePin);
-    if (Array.isArray(decrypted)) {
+    if (isLockedOut) {
+      toast.error(`Locked. Wait ${lockSeconds}s before retrying.`);
+      return;
+    }
+    const currentFilePin = loadFilePin;
+    setLoadFilePin(''); // Clear file PIN from state immediately
+    const decrypted = decryptDataWithPin(pendingFile.content.encryptedData, currentFilePin);
+    if (isValidTaskArray(decrypted)) {
       onLoadFile(decrypted, pendingFile.name);
       setPendingFile(null);
-      setLoadFilePin('');
+      setFailedAttempts(0);
     } else {
       toast.error('Decryption failed. Wrong PIN or corrupted file.');
-      setLoadFilePin('');
+      applyFailedAttemptPenalty();
     }
   };
 
@@ -219,9 +278,9 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
             </div>
           )}
 
-          <Button type="submit" className="w-full h-12 text-md">
+          <Button type="submit" className="w-full h-12 text-md" disabled={isLockedOut || isSubmitting}>
             <Keyhole className="w-5 h-5 mr-2" />
-            {isSetup ? 'Secure & Continue' : 'Decrypt Tasks'}
+            {isLockedOut ? `Locked (${lockSeconds}s)` : isSetup ? 'Secure & Continue' : 'Decrypt Tasks'}
           </Button>
         </form>
 
@@ -252,8 +311,8 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
                 <Button type="button" variant="secondary" className="flex-1" onClick={() => { setPendingFile(null); setLoadFilePin(''); }}>
                   Cancel
                 </Button>
-                <Button type="button" className="flex-1" onClick={handleLoadFileDecrypt} disabled={loadFilePin.length < 4}>
-                  Decrypt & Load
+                <Button type="button" className="flex-1" onClick={handleLoadFileDecrypt} disabled={loadFilePin.length < 4 || isLockedOut}>
+                  {isLockedOut ? `Locked (${lockSeconds}s)` : 'Decrypt & Load'}
                 </Button>
               </div>
             </div>

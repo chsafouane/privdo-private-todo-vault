@@ -16,6 +16,7 @@ let registered = false
 
 /**
  * Pick the first active task sorted by nearest deadline.
+ * Returns only truncated text to minimize plaintext exposure in shared storage.
  */
 function pickWidgetTask(tasks: Task[]): WidgetTask | null {
   const active = tasks
@@ -29,7 +30,10 @@ function pickWidgetTask(tasks: Task[]): WidgetTask | null {
 
   const task = active[0]
   if (!task) return null
-  return { text: task.text, completed: false, deadline: task.deadline }
+  // Truncate text to limit plaintext exposure in widget shared storage
+  const maxLen = 50
+  const text = task.text.length > maxLen ? task.text.slice(0, maxLen) + '…' : task.text
+  return { text, completed: false, deadline: task.deadline }
 }
 
 /**

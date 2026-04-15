@@ -147,7 +147,12 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
               <Button variant="secondary" onClick={() => setStep('choose')}>Back</Button>
               <Button
                 variant="outline"
-                onClick={() => navigator.clipboard.writeText(generatedPassphrase)}
+                onClick={() => {
+                  navigator.clipboard.writeText(generatedPassphrase);
+                  setTimeout(() => {
+                    navigator.clipboard.writeText('').catch(() => {});
+                  }, 30_000);
+                }}
               >
                 Copy
               </Button>
@@ -170,6 +175,8 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
                 value={inputPassphrase}
                 onChange={e => { setInputPassphrase(e.target.value); setError(''); }}
                 placeholder="Enter your passphrase words..."
+                autoComplete="off"
+                data-1p-ignore
                 autoFocus
               />
               {error && <p className="text-xs text-destructive">{error}</p>}
@@ -224,6 +231,8 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
                   value={emailPassphrase}
                   onChange={e => setEmailPassphrase(e.target.value)}
                   placeholder="Enter or paste your encryption passphrase..."
+                  autoComplete="off"
+                  data-1p-ignore
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   This encrypts your data. Use the same passphrase on all devices.

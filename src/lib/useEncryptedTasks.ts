@@ -4,9 +4,14 @@ import { encryptData, decryptData, isKeySet } from './encryption';
 
 const isElectron = !!(window as any).electron;
 
+// Sanitize storage key to prevent path traversal in file names
+function sanitizeKey(key: string): string {
+  return key.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 async function getStorageItem(key: string, storagePath?: string | null): Promise<string | null> {
   if (isElectron && storagePath) {
-    const filePath = storagePath + `/${key}.enc`;
+    const filePath = storagePath + `/${sanitizeKey(key)}.enc`;
     return await (window as any).electron.invoke('read-file', filePath);
   } else {
     return await localforage.getItem<string>(key);
@@ -15,7 +20,7 @@ async function getStorageItem(key: string, storagePath?: string | null): Promise
 
 async function setStorageItem(key: string, value: string, storagePath?: string | null): Promise<void> {
   if (isElectron && storagePath) {
-    const filePath = storagePath + `/${key}.enc`;
+    const filePath = storagePath + `/${sanitizeKey(key)}.enc`;
     await (window as any).electron.invoke('write-file', filePath, value);
   } else {
     await localforage.setItem(key, value);
@@ -45,8 +50,8 @@ export function useEncryptedStorage<T>(key: string, initialValue: T, storagePath
         } else {
           setStoredValue(initialValue);
         }
-      } catch (error) {
-        console.error("Storage init error", error);
+      } catch {
+        console.error("Storage init error");
         setStoredValue(initialValue);
       } finally {
         setIsReady(true);
@@ -60,7 +65,7 @@ export function useEncryptedStorage<T>(key: string, initialValue: T, storagePath
       const valueToStore = value instanceof Function ? value(current) : value;
       if (valueToStore !== undefined && isKeySet()) {
         const encrypted = encryptData(valueToStore);
-        setStorageItem(key, encrypted, storagePath).catch(console.error);
+        setStorageItem(key, encrypted, storagePath).catch(() => console.error('Storage write error'));
       }
       return valueToStore;
     });

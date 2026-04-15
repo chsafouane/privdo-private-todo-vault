@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, session } = require('electron')
 const path = require('path')
 const fs = require('fs/promises')
 const fsSync = require('fs')
@@ -71,9 +71,23 @@ function createWindow () {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
       preload: path.join(__dirname, 'preload.cjs')
     }
   })
+
+  // Block navigation away from the app origin
+  win.webContents.on('will-navigate', (event, url) => {
+    const appOrigin = isDev ? 'http://localhost:5173' : 'file://';
+    if (!url.startsWith(appOrigin)) {
+      event.preventDefault();
+    }
+  });
+
+  // Block new window creation (e.g. target="_blank" links)
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   if (isDev) {
     win.loadURL('http://localhost:5173')
@@ -84,6 +98,19 @@ function createWindow () {
 }
 
 app.whenReady().then(async () => {
+  // Set Content-Security-Policy headers
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const csp = isDev
+      ? "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws://localhost:*; img-src 'self' data:"
+      : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:";
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp]
+      }
+    });
+  });
+
   const config = await getConfig();
   currentStoragePath = config.storagePath || null;
 
