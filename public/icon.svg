@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#0d1f3c"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="108" ry="108" fill="url(#bg)"/>
+  <!-- Shield shape -->
+  <path d="M256 80 L380 130 C380 130 392 280 256 420 C120 280 132 130 132 130 Z"
+        fill="#e8f0fe" opacity="0.95"/>
+  <!-- Todo item 1: checked -->
+  <rect x="182" y="185" width="28" height="28" rx="6" fill="none" stroke="#1e3a5f" stroke-width="4"/>
+  <polyline points="188,200 196,210 216,190" fill="none" stroke="#1e3a5f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="224" y="193" width="100" height="12" rx="6" fill="#1e3a5f" opacity="0.7"/>
+  <!-- Todo item 2: checked -->
+  <rect x="182" y="237" width="28" height="28" rx="6" fill="none" stroke="#1e3a5f" stroke-width="4"/>
+  <polyline points="188,252 196,262 216,242" fill="none" stroke="#1e3a5f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="224" y="245" width="80" height="12" rx="6" fill="#1e3a5f" opacity="0.7"/>
+  <!-- Todo item 3: unchecked -->
+  <rect x="182" y="289" width="28" height="28" rx="6" fill="none" stroke="#1e3a5f" stroke-width="4"/>
+  <rect x="224" y="297" width="90" height="12" rx="6" fill="#1e3a5f" opacity="0.35"/>
+</svg>
