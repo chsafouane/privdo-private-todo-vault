@@ -22,7 +22,7 @@ Available as a **web app**, **PWA**, **macOS desktop app**, **Chrome/Brave exten
 |---|---|
 | **Cipher** | AES-256 via CryptoJS |
 | **Key Derivation** | PBKDF2, 600,000 iterations, 16-byte random salt |
-| **PIN Storage** | Only a SHA-256 hash is stored — never the PIN itself |
+| **PIN Storage** | Only a PBKDF2-derived hash is stored — never the PIN itself |
 | **Data Location** | Browser IndexedDB (web/PWA), local filesystem (Electron), or localStorage (extension) |
 | **Network** | Zero network calls. All data stays on-device. |
 
