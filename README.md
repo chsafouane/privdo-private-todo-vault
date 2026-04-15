@@ -68,7 +68,7 @@ Privdo uses Supabase as the sync backend. To self-host:
 4. Set environment variables:
    ```
    VITE_SUPABASE_URL=https://your-project.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-anon-key
+   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your-key-here
    ```
 
 Without these variables, sync is simply unavailable — the app works fully offline.
