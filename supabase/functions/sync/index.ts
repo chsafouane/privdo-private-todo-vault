@@ -91,8 +91,11 @@ Deno.serve(async (req: Request) => {
       if (encryptedData.length > MAX_PAYLOAD_SIZE) {
         return jsonResponse({ error: "Payload too large" }, 413);
       }
-      if (!deviceId || typeof deviceId !== "string") {
-        return jsonResponse({ error: "Missing deviceId" }, 400);
+      if (!deviceId || typeof deviceId !== "string" || deviceId.length > 128) {
+        return jsonResponse({ error: "Invalid deviceId" }, 400);
+      }
+      if (typeof version !== "number" || version < 0) {
+        return jsonResponse({ error: "Invalid version" }, 400);
       }
 
       // Check current version for optimistic concurrency
@@ -103,20 +106,14 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (existing) {
-        // Existing channel: check version
-        const expectedVersion =
-          typeof version === "number" ? version : existing.version;
-        if (expectedVersion !== existing.version) {
+        if (version !== existing.version) {
           return jsonResponse(
-            {
-              error: "Version conflict",
-              serverVersion: existing.version,
-            },
+            { error: "Version conflict", serverVersion: existing.version },
             409
           );
         }
-        // Update
-        const { error } = await supabase
+        // Atomic update: include version in WHERE to prevent TOCTOU race
+        const { data: updated, error } = await supabase
           .from("sync_blobs")
           .update({
             encrypted_data: encryptedData,
@@ -124,10 +121,19 @@ Deno.serve(async (req: Request) => {
             device_id: deviceId,
             updated_at: new Date().toISOString(),
           })
-          .eq("channel_id", channelId);
+          .eq("channel_id", channelId)
+          .eq("version", existing.version)
+          .select("version")
+          .maybeSingle();
 
         if (error) {
           return jsonResponse({ error: "Database error" }, 500);
+        }
+        if (!updated) {
+          return jsonResponse(
+            { error: "Version conflict", serverVersion: existing.version },
+            409
+          );
         }
 
         return jsonResponse({ ok: true, version: existing.version + 1 });

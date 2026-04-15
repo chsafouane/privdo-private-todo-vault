@@ -56,7 +56,9 @@ export function loadSyncConfig(): SyncConfig | null {
 
 export function saveSyncConfig(config: SyncConfig | null): void {
   if (config) {
-    localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(config));
+    // Strip raw passphrase from persisted config to limit XSS exposure
+    const toStore = { ...config, passphrase: undefined };
+    localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(toStore));
   } else {
     localStorage.removeItem(SYNC_CONFIG_KEY);
   }
@@ -130,7 +132,8 @@ async function cloudPush(
       if (version !== existing.version) {
         throw new Error('VERSION_CONFLICT');
       }
-      const { error } = await supabase
+      // Atomic update: include version in WHERE to prevent TOCTOU race
+      const { data: updated, error } = await supabase
         .from('sync_blobs')
         .update({
           encrypted_data: encryptedData,
@@ -138,9 +141,13 @@ async function cloudPush(
           device_id: config.deviceId,
           updated_at: new Date().toISOString(),
         })
-        .eq('channel_id', config.channelId);
+        .eq('channel_id', config.channelId)
+        .eq('version', existing.version)
+        .select('version')
+        .maybeSingle();
 
       if (error) throw new Error(error.message);
+      if (!updated) throw new Error('VERSION_CONFLICT');
       return { ok: true, version: existing.version + 1 };
     } else {
       const { error } = await supabase
@@ -186,6 +193,7 @@ export function useSyncEngine(
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isSyncing = useRef(false);
   const lastPushedVersion = useRef(syncState.version);
+  const syncRetryCount = useRef(0);
 
   const updateSyncState = useCallback((partial: Partial<SyncState>) => {
     setSyncState(prev => {
@@ -277,16 +285,21 @@ export function useSyncEngine(
           version: result.version,
         });
       }
+      syncRetryCount.current = 0;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sync failed';
       if (message === 'VERSION_CONFLICT') {
-        // Version conflict — retry once after a short delay
+        syncRetryCount.current++;
+        if (syncRetryCount.current > 3) {
+          syncRetryCount.current = 0;
+          updateSyncState({ status: 'error', error: 'Sync conflict persists — try again later' });
+          return;
+        }
         isSyncing.current = false;
         updateSyncState({ version: 0 }); // Reset version to force re-pull
-        setTimeout(() => performSync(), 500);
+        setTimeout(() => performSync(), 500 * syncRetryCount.current);
         return;
       }
-      console.error('Sync error:', message);
       updateSyncState({ status: 'error', error: message });
     } finally {
       isSyncing.current = false;
