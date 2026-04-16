@@ -10,6 +10,7 @@ Privdo uses a layered encryption approach to protect your data both locally and 
 
 - **Cipher**: AES-256-CBC with HMAC-SHA256 (encrypt-then-MAC)
 - **Key derivation**: PBKDF2 with 600,000 iterations and a 16-byte random salt per device (native Web Crypto API)
+- **Sync key derivation**: PBKDF2 via native Web Crypto API (async, non-blocking)
 - **PIN storage**: Only a PBKDF2-derived hash is stored — the PIN never persists in plaintext
 - **Salt persistence**: The encryption salt is stored in both browser localStorage and the Electron config file, ensuring resilience to localStorage loss
 - **Data at rest**: The entire vault (all lists and their tasks) is encrypted as a single blob before being written to IndexedDB, filesystem, or localStorage
@@ -27,6 +28,7 @@ When sync is enabled, an additional encryption layer protects data in transit an
 - **No authentication**: Neither mode uses Supabase Auth. All operations go through an Edge Function with a service-role key. The server never receives your email, password, or passphrase.
 - **Key separation**: Local encryption key (from PIN) and sync encryption key (from passphrase or email+password) are fully independent
 - **Rate limiting**: The sync edge function enforces 60 requests per minute per channel
+- **CORS**: Origin restriction via `ALLOWED_ORIGINS` environment variable (comma-separated list). Falls back to permissive `*` if unconfigured.
 - **Payload limits**: Maximum 5MB per sync blob
 - **Optimistic concurrency**: Version-based conflict detection with atomic WHERE clause prevents race conditions
 
@@ -64,15 +66,16 @@ When sync is enabled, an additional encryption layer protects data in transit an
 | ------ | ----------- |
 | Encrypt-then-MAC | AES-256-CBC + HMAC-SHA256 with IV-ciphertext coverage |
 | PBKDF2 iterations | 600,000 iterations using native Web Crypto — meets OWASP guidance |
-| Constant-time comparison | Used for MAC and PIN hash verification |
+| Constant-time comparison | Used for MAC and PIN hash verification — no length leakage |
 | PIN cleared from memory | PIN values cleared from React state immediately after use |
+| Sync config encryption | Sync key and channel ID encrypted with local key in localStorage |
 | Passphrase entropy | 12 BIP39 words = ~132 bits of entropy |
 | Input sanitization | Storage keys sanitized to prevent filename injection |
 | Tombstone pruning | 30-day auto-purge prevents unbounded data growth |
 
 ### Known Limitations
 
-- **Numeric PIN entropy**: A 4-digit PIN has only 10,000 possible values. While PBKDF2 with 600K iterations makes brute force slow, a determined attacker with the encrypted data and salt could enumerate all 4-digit PINs. Use 6+ digits for stronger protection.
+- **PIN entropy**: PINs accept both letters and numbers (alphanumeric). A short numeric-only PIN has limited entropy — use 6+ characters with mixed content for stronger protection.
 - **CryptoJS**: AES operations use the CryptoJS library (pure JavaScript) rather than native Web Crypto API. While functionally correct, native AES-GCM would provide better performance and resistance to JavaScript-level side channels. Migration is planned.
 - **Widget data**: The iOS widget bridge writes a truncated task title (50 chars) as plaintext to the shared app group. This is documented behavior to enable the widget feature.
 - **Legacy fallback**: Data encrypted with older versions (1,000 PBKDF2 iterations, hardcoded salt) can still be decrypted via a migration path. This exists solely for backward compatibility and does not affect new data.

@@ -14,12 +14,13 @@ function deriveHmacKey(keyHex: string): CryptoJS.lib.WordArray {
   );
 }
 
-// Constant-time comparison to prevent timing attacks on MAC verification
+// Constant-time comparison to prevent timing attacks on MAC verification.
+// Compares the longer of the two lengths to avoid leaking length information.
 function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  const len = Math.max(a.length, b.length);
+  let result = a.length ^ b.length; // non-zero if lengths differ
+  for (let i = 0; i < len; i++) {
+    result |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   }
   return result === 0;
 }
@@ -34,16 +35,33 @@ export function generatePassphrase(wordCount = 12): string {
   return words.join(' ');
 }
 
-export function deriveChannelId(passphrase: string): string {
-  return CryptoJS.SHA256(passphrase + ':' + CHANNEL_SALT).toString();
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export function deriveSyncKey(passphrase: string): string {
-  const salt = CryptoJS.enc.Utf8.parse(SYNC_KEY_SALT);
-  return CryptoJS.PBKDF2(passphrase, salt, {
-    keySize: SYNC_KEY_SIZE,
-    iterations: SYNC_ITERATIONS,
-  }).toString();
+export async function deriveChannelId(passphrase: string): Promise<string> {
+  const enc = new TextEncoder();
+  const data = enc.encode(passphrase + ':' + CHANNEL_SALT);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return bytesToHex(new Uint8Array(hash));
+}
+
+export async function deriveSyncKey(passphrase: string): Promise<string> {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveBits']
+  );
+  const derived = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: enc.encode(SYNC_KEY_SALT),
+      iterations: SYNC_ITERATIONS,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    256 // AES-256
+  );
+  return bytesToHex(new Uint8Array(derived));
 }
 
 export function encryptForSync(data: unknown, syncKey: string): string {

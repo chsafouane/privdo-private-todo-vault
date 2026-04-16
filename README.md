@@ -26,7 +26,7 @@ Available as a **web app**, **PWA**, **macOS desktop app**, **Chrome/Brave exten
 |---|---|
 | **Local Cipher** | AES-256-CBC with HMAC-SHA256 (encrypt-then-MAC) |
 | **Key Derivation** | PBKDF2, 600,000 iterations, 16-byte random salt (native Web Crypto API) |
-| **PIN Storage** | Only a PBKDF2-derived hash is stored — never the PIN itself |
+| **PIN** | Alphanumeric (letters + numbers), min 4 characters. Only a PBKDF2-derived hash is stored |
 | **Brute Force Protection** | Exponential backoff + 60s lockout at 10 attempts (persisted across reloads) |
 | **Data at Rest** | Encrypted vault blob (lists + tasks) stored in IndexedDB (web/PWA), local filesystem (Electron), or localStorage (extension) |
 | **Sync Encryption** | AES-256 with PBKDF2-derived key (600k iterations, separate from local encryption) |

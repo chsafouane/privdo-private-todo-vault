@@ -16,7 +16,7 @@ import { isSupabaseConfigured } from '@/lib/supabaseClient';
 interface SyncSetupProps {
   open: boolean;
   onClose: () => void;
-  onPassphraseSetup: (passphrase: string) => void;
+  onPassphraseSetup: (passphrase: string) => void | Promise<void>;
   onEmailSetup: (email: string, password: string) => Promise<void>;
 }
 

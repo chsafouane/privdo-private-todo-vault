@@ -664,8 +664,8 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
       <SyncSetup
         open={syncSetupOpen}
         onClose={() => setSyncSetupOpen(false)}
-        onPassphraseSetup={(passphrase) => {
-          setupPassphraseSync(passphrase)
+        onPassphraseSetup={async (passphrase) => {
+          await setupPassphraseSync(passphrase)
           toast.success('Sync enabled')
         }}
         onEmailSetup={async (email, password) => {

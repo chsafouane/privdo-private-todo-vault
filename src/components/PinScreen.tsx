@@ -124,7 +124,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (pin.length < 4) {
-      toast.error('PIN must be at least 4 digits');
+      toast.error('PIN must be at least 4 characters');
       return;
     }
     if (isSetup && pin !== confirmPin) {
@@ -251,7 +251,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
             {isSetup ? 'Setup Privdo' : 'Unlock Privdo'}
           </h2>
           <p className="text-muted-foreground text-sm">
-            {isSetup ? 'Create a secure PIN. This encrypts all your data entirely on your device. Do not forget it!' : 'Enter your PIN to decrypt your local tasks.'}
+            {isSetup ? 'Create a secure PIN or passphrase. This encrypts all your data entirely on your device. Do not forget it!' : 'Enter your PIN to decrypt your local tasks.'}
           </p>
         </div>
 
@@ -267,11 +267,9 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
           <div className="space-y-2">
             <Input
               type="password"
-              placeholder="Enter Numeric PIN..."
-              inputMode="numeric"
-              pattern="[0-9]*"
+              placeholder="Enter PIN or passphrase..."
               value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
+              onChange={(e) => setPin(e.target.value)}
               className="text-center text-2xl tracking-[0.5em] placeholder:tracking-normal font-mono h-14"
               autoFocus
             />
@@ -294,7 +292,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground text-center">
-                  {pin.length < 4 ? 'Too short (min 4)' : pin.length < 6 ? 'Okay — 6+ digits recommended' : 'Strong PIN'}
+                  {pin.length < 4 ? 'Too short (min 4)' : pin.length < 6 ? 'Okay — 6+ recommended' : /[a-zA-Z]/.test(pin) && /[0-9]/.test(pin) ? 'Strong (mixed)' : 'Strong'}
                 </p>
               </div>
             )}
@@ -305,10 +303,8 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
               <Input
                 type="password"
                 placeholder="Confirm PIN..."
-                inputMode="numeric"
-                pattern="[0-9]*"
                 value={confirmPin}
-                onChange={(e) => setConfirmPin(e.target.value.replace(/[^0-9]/g, ''))}
+                onChange={(e) => setConfirmPin(e.target.value)}
                 className="text-center text-2xl tracking-[0.5em] placeholder:tracking-normal font-mono h-14"
               />
               {confirmPin.length > 0 && pin !== confirmPin && (
@@ -354,10 +350,8 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
               <Input
                 type="password"
                 placeholder="File PIN..."
-                inputMode="numeric"
-                pattern="[0-9]*"
                 value={loadFilePin}
-                onChange={(e) => setLoadFilePin(e.target.value.replace(/[^0-9]/g, ''))}
+                onChange={(e) => setLoadFilePin(e.target.value)}
                 className="text-center text-xl tracking-[0.5em] placeholder:tracking-normal font-mono h-12"
                 onKeyDown={(e) => { if (e.key === 'Enter') handleLoadFileDecrypt(); }}
                 autoFocus

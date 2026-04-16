@@ -148,20 +148,13 @@ export function clearEncryptionKey() {
 
 /**
  * Constant-time string comparison to prevent timing attacks.
- * Always compares full length regardless of where strings differ.
+ * Always compares the longer of the two lengths to avoid leaking length information.
  */
 export function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    // Compare against self to keep constant time, then return false
-    let dummy = 0;
-    for (let i = 0; i < a.length; i++) {
-      dummy |= a.charCodeAt(i) ^ a.charCodeAt(i);
-    }
-    return false && dummy === 0; // always false, but uses dummy to avoid optimization
-  }
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  const len = Math.max(a.length, b.length);
+  let result = a.length ^ b.length; // non-zero if lengths differ
+  for (let i = 0; i < len; i++) {
+    result |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   }
   return result === 0;
 }

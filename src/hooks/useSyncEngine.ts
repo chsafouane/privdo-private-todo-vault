@@ -6,6 +6,7 @@ import {
   encryptForSync,
   decryptFromSync,
 } from '@/lib/syncEncryption';
+import { encryptData, decryptData, isKeySet } from '@/lib/encryption';
 import { mergeVaults, hasVaultChanges } from '@/lib/syncMerge';
 import type { Vault } from '@/types';
 import { isValidVault, isValidTaskArray, DEFAULT_VAULT } from '@/types';
@@ -48,7 +49,17 @@ export function loadSyncConfig(): SyncConfig | null {
   try {
     const raw = localStorage.getItem(SYNC_CONFIG_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    // Try to decrypt (new encrypted format)
+    if (isKeySet()) {
+      const decrypted = decryptData(raw);
+      if (decrypted && typeof decrypted === 'object' && decrypted.channelId) {
+        return decrypted as SyncConfig;
+      }
+    }
+    // Fallback: try plaintext JSON (migration from old format)
+    const plain = JSON.parse(raw);
+    if (plain && plain.channelId) return plain as SyncConfig;
+    return null;
   } catch {
     return null;
   }
@@ -58,7 +69,13 @@ export function saveSyncConfig(config: SyncConfig | null): void {
   if (config) {
     // Strip raw passphrase from persisted config to limit XSS exposure
     const toStore = { ...config, passphrase: undefined };
-    localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(toStore));
+    if (isKeySet()) {
+      // Encrypt sensitive sync config with the local encryption key
+      const encrypted = encryptData(toStore);
+      localStorage.setItem(SYNC_CONFIG_KEY, encrypted);
+    } else {
+      localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(toStore));
+    }
   } else {
     localStorage.removeItem(SYNC_CONFIG_KEY);
   }
@@ -326,9 +343,11 @@ export function useSyncEngine(
 
   // ─── Setup helpers ────────────────────────────────
 
-  const setupPassphraseSync = useCallback((passphrase: string) => {
-    const channelId = deriveChannelId(passphrase);
-    const syncKey = deriveSyncKey(passphrase);
+  const setupPassphraseSync = useCallback(async (passphrase: string) => {
+    const [channelId, syncKey] = await Promise.all([
+      deriveChannelId(passphrase),
+      deriveSyncKey(passphrase),
+    ]);
     const config: SyncConfig = {
       enabled: true,
       authMode: 'passphrase',
@@ -345,8 +364,10 @@ export function useSyncEngine(
     if (!supabase) throw new Error('Supabase not configured');
 
     const normalized = email.toLowerCase().trim() + ':' + password;
-    const channelId = deriveChannelId(normalized);
-    const syncKey = deriveSyncKey(normalized);
+    const [channelId, syncKey] = await Promise.all([
+      deriveChannelId(normalized),
+      deriveSyncKey(normalized),
+    ]);
     const config: SyncConfig = {
       enabled: true,
       authMode: 'email',
