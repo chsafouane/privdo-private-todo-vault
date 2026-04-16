@@ -333,7 +333,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
                 onClick={() => fileInputRef.current?.click()}
               >
                 <FileArrowUp className="w-5 h-5" />
-                Load a task file
+                Load a vault file
               </Button>
             </>
           )}
