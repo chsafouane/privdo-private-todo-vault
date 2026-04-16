@@ -80,6 +80,29 @@ jobs:
           name: mac-dmg
           path: release/*.dmg
 
+  # ── Windows Desktop (.exe) — Electron ─────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Bump version
+        shell: bash
+        run: scripts/bump-version.sh "${GITHUB_REF_NAME}"
+      - run: npm run build
+      - name: Build Electron .exe
+        run: npx electron-builder --win --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: release/*.exe
+
   # ── Android .apk ──────────────────────────────────────────
   build-android:
     runs-on: ubuntu-latest
@@ -178,7 +201,7 @@ jobs:
 
   # ── GitHub Release ─────────────────────────────────────────
   release:
-    needs: [build-web, build-chrome, build-mac, build-android]
+    needs: [build-web, build-chrome, build-mac, build-windows, build-android]
     # Add build-ios to needs once iOS signing is configured
     runs-on: ubuntu-latest
     steps:
@@ -196,6 +219,7 @@ jobs:
             artifacts/web/privdo-web.zip
             artifacts/chrome-extension/privdo-chrome-extension.zip
             artifacts/mac-dmg/*.dmg
+            artifacts/windows-exe/*.exe
             artifacts/android-apk/*.apk
       - name: Update landing page version
         run: |
