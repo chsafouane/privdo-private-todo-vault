@@ -18,6 +18,16 @@ function getSalt(): string {
   return salt;
 }
 
+/** Restore a previously persisted salt (e.g. from Electron config) into localStorage. */
+export function restoreSalt(salt: string): void {
+  localStorage.setItem('encryption-salt', salt);
+}
+
+/** Return the current salt value so it can be persisted externally. */
+export function getCurrentSalt(): string {
+  return getSalt();
+}
+
 function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {

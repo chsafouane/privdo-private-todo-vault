@@ -3,7 +3,7 @@ import { LockKey, Keyhole, FolderOpen, FileArrowUp } from '@phosphor-icons/react
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { hashPin, legacyHashPin, setEncryptionKeyFromPin, decryptDataWithPin, constantTimeEqual, clearEncryptionKey } from '@/lib/encryption';
+import { hashPin, legacyHashPin, setEncryptionKeyFromPin, decryptDataWithPin, constantTimeEqual, clearEncryptionKey, restoreSalt, getCurrentSalt } from '@/lib/encryption';
 import { isValidTaskArray } from '@/types';
 import { toast } from 'sonner';
 
@@ -70,6 +70,11 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
 
       if (elec) {
         const config = await elec.invoke('get-config');
+        // Restore the encryption salt from the config file into localStorage.
+        // This ensures the salt survives even if Electron's localStorage is cleared.
+        if (config.encryptionSalt) {
+          restoreSalt(config.encryptionSalt);
+        }
         if (config.pinHash) {
           setStoredHash(config.pinHash);
           setIsSetup(false);
@@ -122,7 +127,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
 
     if (isSetup) {
       if (isElectron) {
-        await (window as any).electron.invoke('save-config', { pinHash: currentHash });
+        await (window as any).electron.invoke('save-config', { pinHash: currentHash, encryptionSalt: getCurrentSalt() });
       } else {
         localStorage.setItem('web-auth-hash', currentHash);
       }
@@ -132,6 +137,10 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
       onUnlock(currentHash, storagePath);
     } else {
       if (storedHash && constantTimeEqual(currentHash, storedHash)) {
+        // Successful unlock — also persist salt if not yet saved
+        if (isElectron) {
+          await (window as any).electron.invoke('save-config', { encryptionSalt: getCurrentSalt() });
+        }
         setFailedAttempts(0);
         setIsSubmitting(false);
         onUnlock(currentHash, storagePath);
@@ -141,7 +150,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
         if (storedHash && constantTimeEqual(legacyHash, storedHash)) {
           // Migrate stored hash to PBKDF2
           if (isElectron) {
-            await (window as any).electron.invoke('save-config', { pinHash: currentHash });
+            await (window as any).electron.invoke('save-config', { pinHash: currentHash, encryptionSalt: getCurrentSalt() });
           } else {
             localStorage.setItem('web-auth-hash', currentHash);
           }
