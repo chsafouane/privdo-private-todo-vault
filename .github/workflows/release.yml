@@ -1,0 +1,186 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ── Web / PWA ─────────────────────────────────────────────
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: scripts/bump-version.sh "${GITHUB_REF_NAME}"
+      - run: npm run build
+      - name: Zip PWA
+        run: cd dist && zip -r ../privdo-web.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: privdo-web.zip
+
+  # ── Chrome / Brave Extension ──────────────────────────────
+  build-chrome:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: scripts/bump-version.sh "${GITHUB_REF_NAME}"
+      - run: npm run build
+      - name: Assemble extension
+        run: |
+          rm -f chrome_extension/assets/index-*.js chrome_extension/assets/index-*.css
+          cp dist/assets/index-*.js chrome_extension/assets/
+          cp dist/assets/index-*.css chrome_extension/assets/
+          JS=$(basename dist/assets/index-*.js)
+          CSS=$(basename dist/assets/index-*.css)
+          sed -i "s/index-[^\"]*\.js/$JS/" chrome_extension/index.html
+          sed -i "s/index-[^\"]*\.css/$CSS/" chrome_extension/index.html
+      - name: Zip extension
+        run: cd chrome_extension && zip -r ../privdo-chrome-extension.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension
+          path: privdo-chrome-extension.zip
+
+  # ── macOS Desktop (.dmg) — Electron ───────────────────────
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: scripts/bump-version.sh "${GITHUB_REF_NAME}"
+      - run: npm run build
+      - name: Build Electron .dmg
+        run: npx electron-builder --mac --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-dmg
+          path: release/*.dmg
+
+  # ── Android .apk ──────────────────────────────────────────
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: npm ci
+      - run: scripts/bump-version.sh "${GITHUB_REF_NAME}"
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Build APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/release/*.apk
+
+  # ── iOS .ipa (requires signing secrets) ────────────────────
+  build-ios:
+    runs-on: macos-latest
+    # Remove the 'if' below once you have configured the signing secrets
+    if: ${{ vars.IOS_BUILD_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: scripts/bump-version.sh "${GITHUB_REF_NAME}"
+      - run: npm run build
+      - run: npx cap sync ios
+      - name: Install CocoaPods dependencies
+        working-directory: ios/App
+        run: pod install --repo-update || true
+      - name: Import signing certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          echo "$CERTIFICATE_P12" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 -P "$CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+      - name: Install provisioning profile
+        env:
+          PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROVISIONING_PROFILE" | base64 --decode \
+            > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+      - name: Archive & export .ipa
+        working-directory: ios/App
+        run: |
+          xcodebuild archive \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -archivePath $RUNNER_TEMP/Privdo.xcarchive \
+            -allowProvisioningUpdates \
+            CODE_SIGN_STYLE=Manual
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/Privdo.xcarchive \
+            -exportPath $RUNNER_TEMP/export \
+            -exportOptionsPlist ../../scripts/ExportOptions.plist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: ${{ runner.temp }}/export/*.ipa
+
+  # ── GitHub Release ─────────────────────────────────────────
+  release:
+    needs: [build-web, build-chrome, build-mac, build-android]
+    # Add build-ios to needs once iOS signing is configured
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/web/privdo-web.zip
+            artifacts/chrome-extension/privdo-chrome-extension.zip
+            artifacts/mac-dmg/*.dmg
+            artifacts/android-apk/*.apk

@@ -6,16 +6,18 @@ Available as a **web app**, **PWA**, **macOS desktop app**, **Chrome/Brave exten
 
 ## Features
 
-- **Local Encryption** — All tasks encrypted with AES-256 (PBKDF2 key derivation, 600k iterations) before storage. Your PIN never leaves your device.
-- **End-to-End Encrypted Sync** — Optional cross-device sync via Supabase. The server only stores opaque encrypted blobs — it can never read your tasks.
+- **Local Encryption** — All data encrypted with AES-256 (PBKDF2 key derivation, 600k iterations) before storage. Your PIN never leaves your device.
+- **End-to-End Encrypted Sync** — Optional cross-device sync via Supabase. The server only stores opaque encrypted blobs — it can never read your data.
 - **Two Sync Modes** — Passphrase-only (no account, maximum privacy) or Email+password (easy to remember, same encryption guarantees).
-- **Multiple Lists** — Organize tasks into named lists with easy switching.
+- **Multiple Lists** — Organize tasks into named lists inside an encrypted vault. Create, rename, and delete lists with a single tap.
+- **Drag & Drop Reordering** — Reorder tasks by dragging on desktop or mobile.
 - **Deadlines & Notifications** — Set due dates and get desktop notifications when tasks are overdue.
-- **Search & Sort** — Filter tasks by text, sort by date, deadline, or alphabetically.
-- **Undo Delete** — 5-second undo window after deleting a task.
+- **Search** — Filter tasks by text across the active list.
+- **Swipe to Delete** — Swipe left on mobile to delete a task, with a 5-second undo window.
 - **Dark / Light Mode** — Follows your system preference or set manually.
-- **Export / Import** — PIN-encrypted backups you can move between devices.
+- **Export / Import** — PIN-encrypted backups you can move between devices. Supports both vault and legacy formats.
 - **Offline First** — Works without internet. Sync is optional and resilient to connectivity loss.
+- **Auto-Lock** — Automatically locks after 5 minutes of inactivity.
 - **Cross-Platform** — Runs on macOS, Windows, Linux, iOS, Android, and any modern browser.
 
 ## Security
@@ -25,7 +27,7 @@ Available as a **web app**, **PWA**, **macOS desktop app**, **Chrome/Brave exten
 | **Local Cipher** | AES-256 via CryptoJS |
 | **Key Derivation** | PBKDF2, 600,000 iterations, 16-byte random salt |
 | **PIN Storage** | Only a PBKDF2-derived hash is stored — never the PIN itself |
-| **Data Location** | Browser IndexedDB (web/PWA), local filesystem (Electron), or localStorage (extension) |
+| **Data at Rest** | Encrypted vault blob (lists + tasks) stored in IndexedDB (web/PWA), local filesystem (Electron), or localStorage (extension) |
 | **Sync Encryption** | AES-256 with PBKDF2-derived key (600k iterations, separate from local encryption) |
 | **Sync Server** | Zero-knowledge — stores only encrypted blobs and random channel IDs |
 | **Network** | Zero network calls unless sync is enabled. Local data is always the source of truth. |
@@ -202,9 +204,9 @@ This builds the web app, syncs to the `android/` project, and opens Android Stud
 
 ```
 src/              → React app source code
-  lib/            → Encryption, sync, and utility modules
-  hooks/          → React hooks (sync engine, encrypted storage)
-  components/     → UI components (sync setup, settings, status)
+  lib/            → Encryption, sync, merge, and utility modules
+  hooks/          → React hooks (sync engine, task manager, encrypted storage)
+  components/     → UI components (list selector, sync setup, settings)
 electron/         → Electron main process + preload
 ios/              → Xcode project (Capacitor)
 android/          → Android Studio project (Capacitor)

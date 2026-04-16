@@ -1,23 +1,39 @@
 # Planning Guide
 
-A simple, privacy-focused todo task manager that stores all data locally with end-to-end encryption, accessible from any device via web browser.
+A privacy-focused todo task manager that stores all data locally with end-to-end encryption, accessible from any device. Optional E2E encrypted sync keeps devices in sync without the server ever seeing your data.
+
+Available as a web app, PWA, macOS desktop app (Electron), Chrome/Brave extension, and iOS/Android app (Capacitor).
 
 **Experience Qualities**: 
 1. **Minimal** - Clean, distraction-free interface that gets out of your way and lets you focus on tasks
 2. **Instant** - Zero-latency interactions with immediate feedback for every action you take
-3. **Trustworthy** - All data stays on your device with encryption, no cloud sync, complete privacy
+3. **Trustworthy** - All data encrypted on your device with AES-256. Optional sync is end-to-end encrypted — the server never sees plaintext.
 
-**Complexity Level**: Light Application (multiple features with basic state)
-This is a straightforward task management app with core CRUD operations, task completion states, and local persistence. It doesn't require complex views or integrations.
+**Complexity Level**: Medium Application (multi-list vault, encrypted storage, cross-device sync, multi-platform)
+A task management app with a vault-based data model (multiple named lists, each containing tasks), PIN-based encryption, drag-and-drop reordering, optional E2E encrypted sync, and cross-platform deployment.
 
 ## Essential Features
 
+**PIN-Protected Vault**
+- Functionality: All data is stored in an AES-256 encrypted vault, unlocked by a numeric PIN
+- Purpose: Protect task data at rest — PIN never leaves the device
+- Trigger: App launch or after 5-minute inactivity auto-lock
+- Progression: Open app → Enter PIN → Vault decrypted → Land on last-used list
+- Success criteria: Incorrect PIN shows error; correct PIN decrypts instantly; auto-lock after 5 min of inactivity
+
+**Multiple Task Lists**
+- Functionality: Organize tasks into named lists inside the encrypted vault. Create, rename, and delete lists.
+- Purpose: Separate work, personal, and other contexts without switching apps
+- Trigger: Tap active list name in header → opens list selector dialog
+- Progression: Tap list name → Dialog shows all lists with task counts → Create new / rename / delete / switch
+- Success criteria: Switching lists is instant; last-used list is remembered; deleting a list is soft-delete (syncs correctly); at least one list must always exist
+
 **Add New Task**
-- Functionality: Create a new task with a title
+- Functionality: Create a new task with a title and optional deadline
 - Purpose: Capture tasks quickly without friction
-- Trigger: Click add button or press Enter in input field
-- Progression: Click input field → Type task text → Press Enter or click add → Task appears in list → Input clears
-- Success criteria: Task appears immediately in the list, input is cleared and ready for next task
+- Trigger: Click add button or press Enter in input field; on mobile, tap floating action button to reveal form
+- Progression: Click input field → Type task text → Optionally set deadline → Press Enter or click add → Task appears in list → Input clears
+- Success criteria: Task appears immediately in the list with correct sortOrder, input is cleared and ready for next task
 
 **Complete/Uncomplete Task**
 - Functionality: Toggle task completion status with visual feedback
@@ -27,33 +43,89 @@ This is a straightforward task management app with core CRUD operations, task co
 - Success criteria: State persists across page refreshes, visual change is immediate and satisfying
 
 **Edit Task**
-- Functionality: Modify task text inline
+- Functionality: Modify task text and deadline inline
 - Purpose: Correct mistakes or update task details without recreating
 - Trigger: Click on task text
-- Progression: Click task text → Text becomes editable input → Modify text → Click outside or press Enter → Task updates
+- Progression: Click task text → Text and deadline become editable → Modify → Click outside or press Enter → Task updates
 - Success criteria: Changes save immediately, easy to cancel by pressing Escape
 
 **Delete Task**
-- Functionality: Remove task from list permanently
+- Functionality: Remove task with undo support
 - Purpose: Clean up completed or irrelevant tasks
-- Trigger: Click delete icon on task hover
-- Progression: Hover over task → Delete icon appears → Click delete → Confirmation toast appears → Task fades out and removes
-- Success criteria: Deletion is permanent, cannot be undone, provides brief feedback
+- Trigger: Tap delete icon, or swipe left on mobile
+- Progression: Swipe left or tap trash → Task soft-deleted → Undo toast for 5 seconds → Tombstone remains for sync
+- Success criteria: 5-second undo window, tombstone-based soft delete for sync compatibility
 
-**Persistent Storage**
-- Functionality: All tasks stored locally using Spark's encrypted KV store
+**Drag & Drop Reordering**
+- Functionality: Reorder active tasks by dragging via a handle
+- Purpose: Let users prioritize tasks in their preferred order
+- Trigger: Press and hold the drag handle (six dots icon) on a task
+- Progression: Grab handle → Drag task up/down → Release → sortOrder values updated
+- Success criteria: New order persists across refreshes and syncs correctly
+
+**Search**
+- Functionality: Filter tasks by text within the active list
+- Purpose: Quickly find a task in a long list
+- Trigger: Click magnifying glass icon in header
+- Progression: Click icon → Search bar expands with animation → Type query → Tasks filter in real time → Click X or clear to dismiss
+- Success criteria: Filters both active and completed sections; empty query shows all tasks
+
+**Deadlines & Notifications**
+- Functionality: Set optional due dates on tasks; overdue tasks highlighted in red
+- Purpose: Time-sensitive task tracking
+- Trigger: Set deadline when creating or editing a task
+- Progression: Pick date/time → Deadline shown on task → Overdue tasks shown in red with bold styling → Desktop notification if supported
+- Success criteria: Overdue detection is accurate; visual distinction is clear
+
+**Persistent Encrypted Storage**
+- Functionality: All data stored as an encrypted vault blob using AES-256 (PBKDF2, 600k iterations). IndexedDB on web, filesystem on Electron, localStorage on extension.
 - Purpose: Data survives page refreshes and is encrypted at rest
 - Trigger: Automatic on every state change
-- Progression: Any task modification → Automatic save to KV store → Data encrypted → Persists across sessions
-- Success criteria: Opening app shows all previous tasks, data is encrypted in storage
+- Progression: Any modification → Vault re-encrypted → Persisted to storage
+- Success criteria: Opening app and entering PIN shows all previous data; raw storage is opaque ciphertext
+
+**End-to-End Encrypted Sync (Optional)**
+- Functionality: Cross-device sync via Supabase. Two modes — passphrase (12-word BIP39, no account) or email+password. Server is zero-knowledge.
+- Purpose: Keep tasks in sync across devices without sacrificing privacy
+- Trigger: Click cloud icon in header → configure sync
+- Progression: Choose mode → Enter credentials → Derive channel ID + sync key client-side → Pull/merge/push encrypted blobs
+- Sync behavior: On app open, on task change (2s debounce), every 5 minutes, manual "Sync Now"
+- Success criteria: Merge is conflict-free (LWW per field); server never sees plaintext; offline changes sync when connectivity returns
+
+**Export / Import**
+- Functionality: Export vault as PIN-encrypted JSON backup; import from file
+- Purpose: Manual backup and migration between devices
+- Trigger: Export/import buttons in header toolbar
+- Progression: Export → Downloads encrypted `.json` file. Import → File picker → Decrypt with PIN → Merge into current list or load vault
+- Success criteria: Supports both vault format and legacy single-list format on import
+
+**Dark / Light Mode**
+- Functionality: Toggle between dark and light themes
+- Purpose: Comfortable viewing in any lighting condition
+- Trigger: Sun/Moon icon in header
+- Success criteria: Follows system preference by default; manual toggle persists
+
+**Collapsible Completed Section**
+- Functionality: Completed tasks shown in a collapsible section below active tasks
+- Purpose: Keep focus on active tasks without hiding progress
+- Trigger: Click section header to expand/collapse
+- Progression: Toggle → Section animates open/closed → "Clear" button bulk-deletes all completed
+- Success criteria: Collapse state is intuitive; bulk clear uses soft-delete with tombstones
 
 ## Edge Case Handling
 
-- **Empty Task Submission**: Prevent creating tasks with only whitespace - trim input and ignore if empty
-- **Rapid Task Creation**: Debounce or handle multiple rapid Enter presses gracefully without duplicate tasks
+- **Empty Task Submission**: Prevent creating tasks with only whitespace — trim input and ignore if empty
+- **Rapid Task Creation**: Handle multiple rapid Enter presses gracefully without duplicate tasks
 - **Empty State**: Show helpful empty state message when no tasks exist to guide new users
-- **Very Long Task Text**: Allow long text but truncate display with ellipsis, show full text on hover or when editing
-- **All Tasks Completed**: Celebrate with encouraging message when all tasks are done
+- **All Tasks Completed**: Show "All done! 🎉" celebration message
+- **Very Long Task Text**: Allow long text but truncate display with ellipsis, show full text when editing
+- **Single List Guard**: Cannot delete the last remaining list
+- **Legacy Migration**: On first vault load, auto-migrate legacy single-list task arrays into a "My Tasks" list
+- **Sync Backward Compatibility**: Sync engine detects remote format (legacy Task[] vs Vault) and wraps appropriately
+- **Import Compatibility**: Import accepts both vault format and legacy single-list format
+- **Offline Sync**: Changes queue locally and sync when connectivity returns; toast on online/offline transitions
+- **Auto-Lock**: After 5 minutes of inactivity, encryption key is cleared and user returns to PIN screen
+- **Tombstone Pruning**: Soft-deleted tasks older than 30 days are permanently removed
 
 ## Design Direction
 
@@ -84,23 +156,28 @@ Typography should feel modern, clean, and highly legible with a touch of warmth 
 
 ## Animations
 
-Animations should provide subtle confirmation of actions and maintain spatial continuity. Use gentle spring physics for organic feel - checkboxes bounce slightly when checked, tasks fade in when created, strikethrough animates across completed tasks, and delete actions fade out smoothly. Avoid excessive motion that delays interaction.
+Animations should provide subtle confirmation of actions and maintain spatial continuity. Use gentle spring physics for organic feel — checkboxes bounce slightly when checked, tasks fade in when created, strikethrough animates across completed tasks, delete actions slide out left, swipe-to-delete reveals red background, search bar animates expand/collapse, and drag-and-drop uses layout animations. Avoid excessive motion that delays interaction.
 
 ## Component Selection
 
 - **Components**: 
-  - Input for task entry with auto-focus
+  - Input for task entry with auto-focus and optional deadline picker
   - Button for primary add action with icon
   - Checkbox for completion toggle
-  - Card or subtle container for each task item
+  - Card or subtle container for each task item with drag handle
+  - Dialog for list selector (create, rename, delete, switch lists)
   - Scroll Area for task list when content overflows
-  - Badge for task count indicator
-  - Separator between active and completed sections
+  - Badge for active task count on list name
+  - Collapsible section for completed tasks with bulk clear
+  - Floating Action Button (mobile) for toggling add form
+  - Search bar with animated expand/collapse
   
 - **Customizations**: 
-  - Custom task list item combining checkbox, editable text span, and delete button in horizontal layout
-  - Inline edit state that transforms static text into input seamlessly
+  - Custom task list item combining drag handle, checkbox, editable text span, deadline display, and delete button in horizontal layout
+  - Inline edit state that transforms static text and deadline into inputs seamlessly
   - Animated checkbox with custom checkmark that scales in
+  - Swipe-to-delete gesture on mobile (drag="x", red trash background reveal)
+  - Drag-and-drop reordering via Framer Motion Reorder for active tasks
   
 - **States**: 
   - Input: Focus state with subtle blue border glow, disabled when empty
@@ -111,8 +188,15 @@ Animations should provide subtle confirmation of actions and maintain spatial co
 - **Icon Selection**: 
   - Plus (task addition)
   - Check (task completion) 
-  - X or Trash (task deletion)
-  - Lock or Shield (encryption indicator in footer)
+  - Trash (task deletion)
+  - DotsSixVertical (drag handle for reordering)
+  - MagnifyingGlass (search toggle)
+  - Clock (deadline indicator)
+  - Lock (encryption / PIN screen)
+  - Cloud / CloudSlash (sync status)
+  - CaretRight (list selector trigger)
+  - Sun / Moon (theme toggle)
+  - Export / UploadSimple (export/import)
   
 - **Spacing**: 
   - Container padding: p-6 (24px)

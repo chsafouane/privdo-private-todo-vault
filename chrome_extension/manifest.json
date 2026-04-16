@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Privdo",
   "description": "Encrypted local todo manager — all data stays on your device",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "action": {
     "default_popup": "index.html",
     "default_icon": {

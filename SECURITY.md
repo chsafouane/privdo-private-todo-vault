@@ -10,7 +10,7 @@ Privdo uses a layered encryption approach to protect your data both locally and 
 - **Cipher**: AES-256 via CryptoJS
 - **Key derivation**: PBKDF2 with 600,000 iterations and a 16-byte random salt per device
 - **PIN storage**: Only a PBKDF2-derived hash is stored — the PIN never persists in plaintext
-- **Data at rest**: All tasks are encrypted before being written to IndexedDB, filesystem, or localStorage
+- **Data at rest**: The entire vault (all lists and their tasks) is encrypted as a single blob before being written to IndexedDB, filesystem, or localStorage
 
 ### Sync Encryption (Optional)
 When sync is enabled, an additional encryption layer protects data in transit and at rest on the server:
@@ -25,7 +25,7 @@ When sync is enabled, an additional encryption layer protects data in transit an
 ### What the server can see
 | Data | Visible to server? |
 |---|---|
-| Task text, completion, deadlines | ❌ Never |
+| Task text, list names, deadlines | ❌ Never |
 | Your PIN | ❌ Never |
 | Your sync passphrase | ❌ Never |
 | Your email or password (email mode) | ❌ Never |
