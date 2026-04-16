@@ -104,7 +104,20 @@ Output: `dist/` — deploy to Vercel, Netlify, GitHub Pages, or serve locally wi
 | **Android** | Chrome → ⋮ Menu → Install app |
 | **Desktop** | Chrome/Edge → Install icon in address bar |
 
-### 2. macOS Desktop (.dmg) — Electron
+### 2. macOS Desktop — Electron
+
+**Install via Homebrew (recommended):**
+
+```bash
+brew tap chsafouane/tap
+brew install --cask privdo
+```
+
+This installs Privdo.app to `/Applications` and handles updates with `brew upgrade --cask privdo`.
+
+**Or download the `.dmg`** from the [latest release](https://github.com/chsafouane/privdo-private-todo-vault/releases/latest) and drag to Applications.
+
+**Build from source:**
 
 ```bash
 # Development (live reload)
@@ -113,8 +126,6 @@ npm run electron:dev
 # Build .dmg installer
 npm run electron:build
 ```
-
-The `.dmg` is output to `release/`. Drag to Applications to install.
 
 **Requires:** macOS, Node.js 18+
 

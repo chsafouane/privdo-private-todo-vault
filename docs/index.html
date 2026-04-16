@@ -232,6 +232,15 @@
     .download-card .dl-icon { font-size: 1.8rem; }
     .download-card .dl-label { font-weight: 600; font-size: 0.95rem; }
     .download-card .dl-meta { font-size: 0.78rem; color: var(--fg-muted); }
+    .download-card .dl-code {
+      font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.72rem;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 10px; color: var(--fg); user-select: all; cursor: text;
+      word-break: break-all; line-height: 1.4;
+    }
+    .download-card .dl-alt {
+      font-size: 0.72rem; color: var(--fg-muted); text-decoration: underline;
+    }
 
     /* ── Footer ───────────────────────────────────── */
     footer {
@@ -422,11 +431,12 @@
         <span class="dl-label">Windows</span>
         <span class="dl-meta">.exe — x64 installer</span>
       </a>
-      <a href="https://github.com/chsafouane/privdo-private-todo-vault/releases/latest" class="download-card">
+      <div class="download-card" style="cursor: default;">
         <span class="dl-icon">🍎</span>
         <span class="dl-label">macOS</span>
-        <span class="dl-meta">.dmg — Apple Silicon &amp; Intel</span>
-      </a>
+        <code class="dl-code">brew tap chsafouane/tap<br>brew install --cask privdo</code>
+        <a href="https://github.com/chsafouane/privdo-private-todo-vault/releases/latest" class="dl-alt">or download .dmg</a>
+      </div>
       <a href="https://github.com/chsafouane/privdo-private-todo-vault/releases/latest" class="download-card">
         <span class="dl-icon">🤖</span>
         <span class="dl-label">Android</span>
