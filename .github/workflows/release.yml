@@ -97,13 +97,24 @@ jobs:
       - run: scripts/bump-version.sh "${GITHUB_REF_NAME}"
       - run: npm run build
       - run: npx cap sync android
+      - name: Decode signing keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 --decode > android/privdo-release.keystore
       - name: Build APK
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleRelease
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Rename APK
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mv android/app/build/outputs/apk/release/app-release.apk \
+             android/app/build/outputs/apk/release/privdo-${VERSION}.apk
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/release/privdo-*.apk
 
   # ── iOS .ipa (requires signing secrets) ────────────────────
   build-ios:
