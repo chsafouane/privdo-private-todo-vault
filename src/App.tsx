@@ -520,9 +520,6 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
           <div className="flex-1 p-4 space-y-4 overflow-y-auto pb-24 sm:pb-4">
             {liveTasks.length === 0 ? (
               <div className="text-center py-16 px-4">
-                <div className="w-16 h-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
-                  <Plus size={32} className="text-muted-foreground" />
-                </div>
                 <p className="text-muted-foreground font-medium">No tasks yet</p>
                 <p className="text-sm text-muted-foreground mt-1">Add your first task to get started</p>
               </div>

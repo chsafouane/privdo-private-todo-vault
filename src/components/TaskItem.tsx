@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Trash, Clock, DotsSixVertical } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,6 +37,8 @@ export function TaskItem({
   onCancelEdit,
   dragControls,
 }: TaskItemProps) {
+  const editInputRef = useRef<HTMLInputElement>(null)
+
   if (isCompleted) {
     return (
       <motion.div
@@ -121,6 +124,7 @@ export function TaskItem({
         {isEditing ? (
           <div className="flex-1 flex flex-col gap-2">
             <Input
+              ref={editInputRef}
               value={editText}
               onChange={(e) => onEditTextChange(e.target.value)}
               onKeyDown={(e) => {
@@ -154,7 +158,10 @@ export function TaskItem({
                   variant="ghost"
                   size="icon"
                   data-edit-deadline
-                  onClick={() => onEditDeadlineChange('')}
+                  onClick={() => {
+                    onEditDeadlineChange('')
+                    requestAnimationFrame(() => editInputRef.current?.focus())
+                  }}
                   className="h-6 w-6 text-muted-foreground hover:text-destructive"
                   title="Remove deadline"
                 >
