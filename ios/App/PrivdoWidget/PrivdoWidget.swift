@@ -7,6 +7,7 @@ struct WidgetTask: Codable {
     let text: String
     let completed: Bool
     let deadline: String?
+    let priority: Int?
 }
 
 // MARK: – Timeline Entry
@@ -23,7 +24,7 @@ struct PrivdoTimelineProvider: TimelineProvider {
     private let key = "widgetTask"
 
     func placeholder(in context: Context) -> PrivdoEntry {
-        PrivdoEntry(date: Date(), task: WidgetTask(text: "Buy groceries", completed: false, deadline: nil))
+        PrivdoEntry(date: Date(), task: WidgetTask(text: "Buy groceries", completed: false, deadline: nil, priority: nil))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (PrivdoEntry) -> Void) {
@@ -106,11 +107,18 @@ struct PrivdoWidgetEntryView: View {
                     .foregroundColor(.secondary)
             }
             Spacer()
-            Text(task.text)
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .lineLimit(3)
-                .foregroundColor(.primary)
+            HStack(spacing: 4) {
+                if let color = priorityColor(task.priority) {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 6, height: 6)
+                }
+                Text(task.text)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(3)
+                    .foregroundColor(.primary)
+            }
             if let dl = formattedDeadline(task.deadline) {
                 Text(dl)
                     .font(.caption2)
@@ -128,11 +136,18 @@ struct PrivdoWidgetEntryView: View {
                 .foregroundColor(task.completed ? .green : accentColor)
                 .font(.system(size: 28))
             VStack(alignment: .leading, spacing: 4) {
-                Text(task.text)
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .lineLimit(2)
-                    .foregroundColor(.primary)
+                HStack(spacing: 4) {
+                    if let color = priorityColor(task.priority) {
+                        Circle()
+                            .fill(color)
+                            .frame(width: 6, height: 6)
+                    }
+                    Text(task.text)
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .lineLimit(2)
+                        .foregroundColor(.primary)
+                }
                 if let dl = formattedDeadline(task.deadline) {
                     HStack(spacing: 4) {
                         Image(systemName: "clock")
@@ -175,9 +190,15 @@ struct PrivdoWidgetEntryView: View {
                     .font(.system(size: 32))
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(task.text)
-                        .font(.title3)
-                        .fontWeight(.medium)
+                    HStack(spacing: 6) {
+                        if let color = priorityColor(task.priority) {
+                            Circle()
+                                .fill(color)
+                                .frame(width: 8, height: 8)
+                        }
+                        Text(task.text)
+                            .font(.title3)
+                            .fontWeight(.medium)
                         .lineLimit(family == .systemExtraLarge ? 8 : 5)
                         .foregroundColor(.primary)
 
@@ -223,6 +244,15 @@ struct PrivdoWidgetEntryView: View {
     }
 
     // MARK: Helpers
+
+    private func priorityColor(_ priority: Int?) -> Color? {
+        switch priority {
+        case 1: return .green
+        case 2: return .yellow
+        case 3: return .red
+        default: return nil
+        }
+    }
 
     private func formattedDeadline(_ deadline: String?) -> String? {
         guard let dl = deadline else { return nil }

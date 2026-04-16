@@ -155,7 +155,9 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
   // Task CRUD hook
   const {
     newTaskText, setNewTaskText, newTaskDeadline, setNewTaskDeadline,
+    newTaskPriority, setNewTaskPriority, newTaskRecurrence, setNewTaskRecurrence,
     editingId, editText, setEditText, editDeadline, setEditDeadline,
+    editPriority, setEditPriority, editRecurrence, setEditRecurrence,
     undoTimeoutRef,
     addTask: addTaskBase, toggleTask, deleteTask, clearCompleted,
     startEdit, saveEdit, cancelEdit,
@@ -296,7 +298,9 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
     .sort((a, b) => {
       const dateA = new Date(a.deadline!).getTime()
       const dateB = new Date(b.deadline!).getTime()
-      return deadlineSortAsc ? dateA - dateB : dateB - dateA
+      const dateCompare = deadlineSortAsc ? dateA - dateB : dateB - dateA
+      if (dateCompare !== 0) return dateCompare
+      return (b.priority ?? 0) - (a.priority ?? 0)
     })
   const unscheduledTasks = activeTasks.filter(t => !t.deadline)
 
@@ -530,9 +534,13 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
             <AddTaskForm
               newTaskText={newTaskText}
               newTaskDeadline={newTaskDeadline}
+              newTaskPriority={newTaskPriority}
+              newTaskRecurrence={newTaskRecurrence}
               addOpen={addOpen}
               onTextChange={setNewTaskText}
               onDeadlineChange={setNewTaskDeadline}
+              onPriorityChange={setNewTaskPriority}
+              onRecurrenceChange={setNewTaskRecurrence}
               onAdd={addTask}
             />
           </div>
@@ -575,11 +583,15 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
                               isEditing={editingId === task.id}
                               editText={editText}
                               editDeadline={editDeadline}
+                              editPriority={editPriority}
+                              editRecurrence={editRecurrence}
                               onToggle={toggleTask}
                               onDelete={deleteTask}
                               onStartEdit={startEdit}
                               onEditTextChange={setEditText}
                               onEditDeadlineChange={setEditDeadline}
+                              onEditPriorityChange={setEditPriority}
+                              onEditRecurrenceChange={setEditRecurrence}
                               onSaveEdit={saveEdit}
                               onCancelEdit={cancelEdit}
                             />
@@ -607,11 +619,15 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
                                 isEditing={editingId === task.id}
                                 editText={editText}
                                 editDeadline={editDeadline}
+                                editPriority={editPriority}
+                                editRecurrence={editRecurrence}
                                 onToggle={toggleTask}
                                 onDelete={deleteTask}
                                 onStartEdit={startEdit}
                                 onEditTextChange={setEditText}
                                 onEditDeadlineChange={setEditDeadline}
+                                onEditPriorityChange={setEditPriority}
+                                onEditRecurrenceChange={setEditRecurrence}
                                 onSaveEdit={saveEdit}
                                 onCancelEdit={cancelEdit}
                                 dragControls
@@ -658,11 +674,15 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
                             isEditing={false}
                             editText=""
                             editDeadline=""
+                            editPriority={0}
+                            editRecurrence=""
                             onToggle={toggleTask}
                             onDelete={deleteTask}
                             onStartEdit={startEdit}
                             onEditTextChange={setEditText}
                             onEditDeadlineChange={setEditDeadline}
+                            onEditPriorityChange={setEditPriority}
+                            onEditRecurrenceChange={setEditRecurrence}
                             onSaveEdit={saveEdit}
                             onCancelEdit={cancelEdit}
                           />

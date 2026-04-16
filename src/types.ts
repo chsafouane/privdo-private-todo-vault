@@ -7,6 +7,8 @@ export interface Task {
   deadline?: string
   deletedAt?: number
   sortOrder: number
+  priority?: number // 0=none, 1=low, 2=medium, 3=high
+  recurrence?: 'daily' | 'weekly' | 'monthly'
 }
 
 export interface TaskList {
@@ -34,7 +36,9 @@ export function isValidTaskArray(data: unknown): data is Task[] {
     typeof item.updatedAt === 'number' &&
     (!('deadline' in item) || item.deadline === undefined || typeof item.deadline === 'string') &&
     (!('deletedAt' in item) || item.deletedAt === undefined || typeof item.deletedAt === 'number') &&
-    (!('sortOrder' in item) || typeof item.sortOrder === 'number')
+    (!('sortOrder' in item) || typeof item.sortOrder === 'number') &&
+    (!('priority' in item) || item.priority === undefined || typeof item.priority === 'number') &&
+    (!('recurrence' in item) || item.recurrence === undefined || ['daily', 'weekly', 'monthly'].includes(item.recurrence))
   )
 }
 
