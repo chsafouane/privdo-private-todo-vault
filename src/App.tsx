@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, X, CloudCheck, CaretRight, List } from '@phosphor-icons/react'
+import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, X, CloudCheck, CaretRight, List, SortAscending, SortDescending, Clock } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -183,6 +183,9 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
   const [pinDialogValue, setPinDialogValue] = useState('')
   const [pendingImportContent, setPendingImportContent] = useState<any>(null)
   const [completedCollapsed, setCompletedCollapsed] = useState(true)
+  const [deadlineSortAsc, setDeadlineSortAsc] = useState(() => {
+    return localStorage.getItem('deadlineSortAsc') !== 'false'
+  })
   const [darkMode, setDarkMode] = useState(() => {
     const stored = localStorage.getItem('theme');
     if (stored) return stored === 'dark';
@@ -287,6 +290,23 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
 
   const activeTasks = sortByOrder(filterBySearch(liveTasks.filter(t => !t.completed)))
   const completedTasks = sortByOrder(filterBySearch(liveTasks.filter(t => t.completed)))
+
+  const scheduledTasks = activeTasks
+    .filter(t => t.deadline)
+    .sort((a, b) => {
+      const dateA = new Date(a.deadline!).getTime()
+      const dateB = new Date(b.deadline!).getTime()
+      return deadlineSortAsc ? dateA - dateB : dateB - dateA
+    })
+  const unscheduledTasks = activeTasks.filter(t => !t.deadline)
+
+  const toggleDeadlineSort = useCallback(() => {
+    setDeadlineSortAsc(prev => {
+      const next = !prev
+      localStorage.setItem('deadlineSortAsc', String(next))
+      return next
+    })
+  }, [])
 
   const handleReorder = useCallback((reordered: Task[]) => {
     const now = Date.now()
@@ -531,26 +551,77 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
             ) : (
               <>
                 {activeTasks.length > 0 && (
-                  <Reorder.Group axis="y" values={activeTasks} onReorder={handleReorder} className="space-y-1" as="div">
-                    {activeTasks.map((task) => (
-                      <Reorder.Item key={task.id} value={task} as="div" className="list-none">
-                        <TaskItem
-                          task={task}
-                          isEditing={editingId === task.id}
-                          editText={editText}
-                          editDeadline={editDeadline}
-                          onToggle={toggleTask}
-                          onDelete={deleteTask}
-                          onStartEdit={startEdit}
-                          onEditTextChange={setEditText}
-                          onEditDeadlineChange={setEditDeadline}
-                          onSaveEdit={saveEdit}
-                          onCancelEdit={cancelEdit}
-                          dragControls
-                        />
-                      </Reorder.Item>
-                    ))}
-                  </Reorder.Group>
+                  <>
+                    {scheduledTasks.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between px-3 mb-1">
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                            <Clock size={12} />
+                            Upcoming ({scheduledTasks.length})
+                          </div>
+                          <button
+                            onClick={toggleDeadlineSort}
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors p-1 rounded"
+                            title={deadlineSortAsc ? 'Earliest first' : 'Latest first'}
+                          >
+                            {deadlineSortAsc ? <SortAscending size={14} /> : <SortDescending size={14} />}
+                          </button>
+                        </div>
+                        <AnimatePresence mode="popLayout">
+                          {scheduledTasks.map((task) => (
+                            <TaskItem
+                              key={task.id}
+                              task={task}
+                              isEditing={editingId === task.id}
+                              editText={editText}
+                              editDeadline={editDeadline}
+                              onToggle={toggleTask}
+                              onDelete={deleteTask}
+                              onStartEdit={startEdit}
+                              onEditTextChange={setEditText}
+                              onEditDeadlineChange={setEditDeadline}
+                              onSaveEdit={saveEdit}
+                              onCancelEdit={cancelEdit}
+                            />
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    )}
+
+                    {scheduledTasks.length > 0 && unscheduledTasks.length > 0 && (
+                      <Separator className="my-3" />
+                    )}
+
+                    {unscheduledTasks.length > 0 && (
+                      <div className="space-y-1">
+                        {scheduledTasks.length > 0 && (
+                          <div className="flex items-center gap-1.5 px-3 mb-1 text-xs font-medium text-muted-foreground">
+                            Other ({unscheduledTasks.length})
+                          </div>
+                        )}
+                        <Reorder.Group axis="y" values={unscheduledTasks} onReorder={handleReorder} className="space-y-1" as="div">
+                          {unscheduledTasks.map((task) => (
+                            <Reorder.Item key={task.id} value={task} as="div" className="list-none">
+                              <TaskItem
+                                task={task}
+                                isEditing={editingId === task.id}
+                                editText={editText}
+                                editDeadline={editDeadline}
+                                onToggle={toggleTask}
+                                onDelete={deleteTask}
+                                onStartEdit={startEdit}
+                                onEditTextChange={setEditText}
+                                onEditDeadlineChange={setEditDeadline}
+                                onSaveEdit={saveEdit}
+                                onCancelEdit={cancelEdit}
+                                dragControls
+                              />
+                            </Reorder.Item>
+                          ))}
+                        </Reorder.Group>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {completedTasks.length > 0 && (
