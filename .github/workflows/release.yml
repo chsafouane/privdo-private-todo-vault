@@ -238,3 +238,42 @@ jobs:
             git commit -m "chore: update landing page version to ${GITHUB_REF_NAME}"
             git push
           fi
+      - name: Update Homebrew cask
+        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARM_SHA=$(sha256sum artifacts/mac-dmg/Privdo-${VERSION}-arm64.dmg | cut -d' ' -f1)
+          X64_SHA=$(sha256sum artifacts/mac-dmg/Privdo-${VERSION}-x64.dmg | cut -d' ' -f1)
+          git clone https://x-access-token:${TAP_TOKEN}@github.com/chsafouane/homebrew-tap.git /tmp/homebrew-tap
+          cd /tmp/homebrew-tap
+          cat > Casks/privdo.rb << EOF
+          cask "privdo" do
+            arch arm: "arm64", intel: "x64"
+
+            version "${VERSION}"
+            sha256 arm:   "${ARM_SHA}",
+                   intel: "${X64_SHA}"
+
+            url "https://github.com/chsafouane/privdo-private-todo-vault/releases/download/v#{version}/Privdo-#{version}-#{arch}.dmg"
+            name "Privdo"
+            desc "Private, encrypted todo list with AES-256 encryption and PIN-protected vault"
+            homepage "https://chsafouane.github.io/privdo-private-todo-vault/"
+
+            app "Privdo.app"
+
+            zap trash: [
+              "~/Library/Application Support/Privdo",
+              "~/Library/Preferences/com.privdo.app.plist",
+            ]
+          end
+          EOF
+          sed -i 's/^          //' Casks/privdo.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/privdo.rb
+          if ! git diff --cached --quiet; then
+            git commit -m "Update Privdo to ${VERSION}"
+            git push
+          fi

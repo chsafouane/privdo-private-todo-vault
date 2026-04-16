@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privdo — Privacy Policy</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #1a1a2e; line-height: 1.7; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.2em; }
+    h2 { font-size: 1.2rem; margin-top: 2em; }
+    .date { color: #666; font-size: 0.9rem; }
+    a { color: #1a5fb4; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+    th { background: #f5f5f5; }
+  </style>
+</head>
+<body>
+  <h1>Privdo — Privacy Policy</h1>
+  <p class="date">Last updated: April 16, 2026</p>
+
+  <h2>Summary</h2>
+  <p>Privdo does not collect, transmit, or share any personal data. All your tasks and settings are encrypted with AES-256 and stored locally on your device.</p>
+
+  <h2>Data Storage</h2>
+  <p>All data is stored locally using your browser's storage APIs (localStorage for the Chrome extension, IndexedDB for the web app). Your data is encrypted at rest using AES-256 with PBKDF2 key derivation (600,000 iterations). Your PIN never leaves your device.</p>
+
+  <h2>Optional Sync</h2>
+  <p>If you choose to enable cross-device sync, your data is encrypted end-to-end before leaving your device. The sync server (Supabase) only stores opaque encrypted blobs and a random channel ID. The server never sees your plaintext tasks, PIN, passphrase, email, or password.</p>
+
+  <table>
+    <tr><th>Data</th><th>Visible to server?</th></tr>
+    <tr><td>Task text, list names, deadlines</td><td>No</td></tr>
+    <tr><td>Your PIN</td><td>No</td></tr>
+    <tr><td>Your sync passphrase or email/password</td><td>No</td></tr>
+    <tr><td>Encrypted blob (opaque ciphertext)</td><td>Yes</td></tr>
+    <tr><td>Channel ID (random hash)</td><td>Yes</td></tr>
+    <tr><td>Timestamp of last sync</td><td>Yes</td></tr>
+  </table>
+
+  <h2>Permissions</h2>
+  <p>The Chrome extension requests only the <code>storage</code> permission, which is used to persist your encrypted task vault locally so data survives between browser sessions. No other permissions are requested.</p>
+
+  <h2>Third-Party Services</h2>
+  <p>Privdo does not use any analytics, tracking, advertising, or third-party data collection services. If sync is enabled, the only external service contacted is the Supabase sync endpoint, which receives only encrypted data.</p>
+
+  <h2>Data Sharing</h2>
+  <p>We do not collect, sell, transfer, or share user data with any third parties for any purpose.</p>
+
+  <h2>Changes to This Policy</h2>
+  <p>If this policy is updated, the changes will be posted on this page with an updated date.</p>
+
+  <h2>Contact</h2>
+  <p>If you have questions about this privacy policy, you can open an issue on the <a href="https://github.com/chsafouane/local-todo-manager">GitHub repository</a>.</p>
+</body>
+</html>
