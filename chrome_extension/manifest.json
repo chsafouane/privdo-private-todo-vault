@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Privdo",
-  "description": "Private, encrypted todo lists protected by PIN. AES-256 vault with optional E2E sync. No account needed.",
+  "description": "Private todo lists encrypted on your device. Organize tasks into PIN-locked lists with deadlines, drag & drop, and optional encrypted sync.",
   "version": "1.0.0",
   "action": {
     "default_popup": "index.html",
