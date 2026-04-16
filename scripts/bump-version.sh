@@ -21,16 +21,25 @@ VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Cross-platform sed in-place: macOS needs -i '', GNU/Linux needs -i
+sedi() {
+  if [[ "$OSTYPE" == darwin* ]]; then
+    sed -i '' "$@"
+  else
+    sed -i "$@"
+  fi
+}
+
 echo "Bumping all versions to $VERSION (versionCode=$VERSION_CODE)"
 
 # 1. package.json
-sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" "$ROOT/package.json"
+sedi "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" "$ROOT/package.json"
 
 # 2. Chrome extension manifest.json
-sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" "$ROOT/chrome_extension/manifest.json"
+sedi "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" "$ROOT/chrome_extension/manifest.json"
 
 # 3. Android versionName + versionCode
-sed -i '' "s/versionName \".*\"/versionName \"$VERSION\"/" "$ROOT/android/app/build.gradle"
-sed -i '' "s/versionCode [0-9]*/versionCode $VERSION_CODE/" "$ROOT/android/app/build.gradle"
+sedi "s/versionName \".*\"/versionName \"$VERSION\"/" "$ROOT/android/app/build.gradle"
+sedi "s/versionCode [0-9]*/versionCode $VERSION_CODE/" "$ROOT/android/app/build.gradle"
 
 echo "Done."
