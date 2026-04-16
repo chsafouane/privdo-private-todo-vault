@@ -25,11 +25,13 @@ jobs:
       - run: scripts/bump-version.sh "${GITHUB_REF_NAME}"
       - run: npm run build
       - name: Zip PWA
-        run: cd dist && zip -r ../privdo-web.zip .
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd dist && zip -r ../privdo-web-${VERSION}.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: web
-          path: privdo-web.zip
+          path: privdo-web-*.zip
 
   # ── Chrome / Brave Extension ──────────────────────────────
   build-chrome:
@@ -53,11 +55,13 @@ jobs:
           sed -i "s/index-[^\"]*\.js/$JS/" chrome_extension/index.html
           sed -i "s/index-[^\"]*\.css/$CSS/" chrome_extension/index.html
       - name: Zip extension
-        run: cd chrome_extension && zip -r ../privdo-chrome-extension.zip .
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd chrome_extension && zip -r ../privdo-chrome-extension-${VERSION}.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: chrome-extension
-          path: privdo-chrome-extension.zip
+          path: privdo-chrome-extension-*.zip
 
   # ── macOS Desktop (.dmg) — Electron ───────────────────────
   build-mac:
@@ -216,8 +220,8 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            artifacts/web/privdo-web.zip
-            artifacts/chrome-extension/privdo-chrome-extension.zip
+            artifacts/web/privdo-web-*.zip
+            artifacts/chrome-extension/privdo-chrome-extension-*.zip
             artifacts/mac-dmg/*.dmg
             artifacts/windows-exe/*.exe
             artifacts/android-apk/*.apk
