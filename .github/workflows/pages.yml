@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'package.json'
   workflow_run:
     workflows: [Release]
     types: [completed]
@@ -28,9 +33,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build web app
+        run: npm run build
+        env:
+          VITE_BASE: /privdo-private-todo-vault/app/
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp -r docs/* _site/
+          cp -r dist _site/app
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
