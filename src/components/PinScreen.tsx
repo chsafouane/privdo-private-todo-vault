@@ -292,7 +292,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
 
           <Button type="submit" className="w-full h-12 text-md" disabled={isLockedOut || isSubmitting}>
             <Keyhole className="w-5 h-5 mr-2" />
-            {isLockedOut ? `Locked (${lockSeconds}s)` : isSetup ? 'Secure & Continue' : 'Decrypt Tasks'}
+            {isLockedOut ? `Locked (${lockSeconds}s)` : isSetup ? 'Secure & Continue' : 'Decrypt Vault'}
           </Button>
         </form>
 
