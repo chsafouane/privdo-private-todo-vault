@@ -6,9 +6,19 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { motion } from 'framer-motion'
 import { Task } from '@/types'
 
-const PRIORITY_DOT_COLORS = ['', 'bg-green-500', 'bg-yellow-500', 'bg-red-500']
-const PRIORITY_LABELS = ['None', 'Low', 'Medium', 'High']
-const PRIORITY_PICKER_COLORS = ['bg-muted-foreground/30', 'bg-green-500', 'bg-yellow-500', 'bg-red-500']
+const PRIORITY_LABELS = ['None', 'Low', 'Med', 'High']
+const PRIORITY_BADGE_CLASSES = [
+  '',
+  'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900/40',
+  'text-yellow-700 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/40',
+  'text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/40',
+]
+const PRIORITY_PICKER_OPTIONS = [
+  { label: '—', value: 0, activeClass: 'bg-muted text-foreground' },
+  { label: 'Low', value: 1, activeClass: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' },
+  { label: 'Med', value: 2, activeClass: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400' },
+  { label: 'High', value: 3, activeClass: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' },
+]
 const RECURRENCE_OPTIONS = [
   { value: '', label: '—' },
   { value: 'daily', label: 'D' },
@@ -37,13 +47,15 @@ export interface TaskItemProps {
   dragControls?: boolean
 }
 
-function PriorityDot({ priority, muted }: { priority?: number; muted?: boolean }) {
+function PriorityBadge({ priority, muted }: { priority?: number; muted?: boolean }) {
   if (!priority || priority === 0) return null
   return (
     <span
-      className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${PRIORITY_DOT_COLORS[priority]} ${muted ? 'opacity-50' : ''}`}
-      title={PRIORITY_LABELS[priority]}
-    />
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${PRIORITY_BADGE_CLASSES[priority]} ${muted ? 'opacity-50' : ''}`}
+      title={`${PRIORITY_LABELS[priority]} priority`}
+    >
+      {PRIORITY_LABELS[priority]}
+    </span>
   )
 }
 
@@ -98,7 +110,7 @@ export function TaskItem({
 
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center gap-1.5">
-            <PriorityDot priority={task.priority} muted />
+            <PriorityBadge priority={task.priority} muted />
             <label
               htmlFor={`task-${task.id}`}
               className="text-sm text-muted-foreground line-through cursor-pointer select-none truncate"
@@ -218,16 +230,18 @@ export function TaskItem({
               )}
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1" data-edit-area>
-                {PRIORITY_PICKER_COLORS.map((color, i) => (
+              <div className="flex items-center gap-0.5 border rounded-md overflow-hidden" data-edit-area>
+                {PRIORITY_PICKER_OPTIONS.map((opt) => (
                   <button
-                    key={i}
+                    key={opt.value}
                     data-edit-area
-                    onClick={() => onEditPriorityChange(i)}
-                    className={`w-5 h-5 rounded-full border-2 transition-all ${color} ${editPriority === i ? 'border-foreground scale-110' : 'border-transparent opacity-60 hover:opacity-100'}`}
-                    title={PRIORITY_LABELS[i]}
+                    onClick={() => onEditPriorityChange(opt.value)}
+                    className={`px-2 py-1 text-[10px] font-medium transition-colors ${editPriority === opt.value ? opt.activeClass : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                    title={opt.value === 0 ? 'No priority' : `${opt.label} priority`}
                     type="button"
-                  />
+                  >
+                    {opt.label}
+                  </button>
                 ))}
               </div>
               {editDeadline && (
@@ -251,7 +265,7 @@ export function TaskItem({
         ) : (
           <div className="flex-1 flex flex-col min-w-0">
             <div className="flex items-center gap-1.5">
-              <PriorityDot priority={task.priority} />
+              <PriorityBadge priority={task.priority} />
               <label
                 htmlFor={`task-${task.id}`}
                 onClick={(e) => {

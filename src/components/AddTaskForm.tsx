@@ -3,13 +3,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { motion, AnimatePresence } from 'framer-motion'
 
-const PRIORITY_COLORS = [
-  'bg-muted-foreground/30',   // 0 = none
-  'bg-green-500',              // 1 = low
-  'bg-yellow-500',             // 2 = medium
-  'bg-red-500',                // 3 = high
+const PRIORITY_OPTIONS = [
+  { label: '—', value: 0, activeClass: 'bg-muted text-foreground' },
+  { label: 'Low', value: 1, activeClass: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' },
+  { label: 'Med', value: 2, activeClass: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400' },
+  { label: 'High', value: 3, activeClass: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' },
 ]
-const PRIORITY_LABELS = ['None', 'Low', 'Medium', 'High']
 const RECURRENCE_OPTIONS = [
   { value: '', label: '—' },
   { value: 'daily', label: 'D' },
@@ -78,15 +77,17 @@ export function AddTaskForm({
             className="flex-shrink-0 h-8 w-fit bg-background text-xs text-foreground"
             aria-label="Set a deadline (optional)"
           />
-          <div className="flex items-center gap-1">
-            {PRIORITY_COLORS.map((color, i) => (
+          <div className="flex items-center gap-0.5 border rounded-md overflow-hidden">
+            {PRIORITY_OPTIONS.map((opt) => (
               <button
-                key={i}
-                onClick={() => onPriorityChange(i)}
-                className={`w-5 h-5 rounded-full border-2 transition-all ${color} ${newTaskPriority === i ? 'border-foreground scale-110' : 'border-transparent opacity-60 hover:opacity-100'}`}
-                title={PRIORITY_LABELS[i]}
+                key={opt.value}
+                onClick={() => onPriorityChange(opt.value)}
+                className={`px-2 py-1 text-[10px] font-medium transition-colors ${newTaskPriority === opt.value ? opt.activeClass : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                title={opt.value === 0 ? 'No priority' : `${opt.label} priority`}
                 type="button"
-              />
+              >
+                {opt.label}
+              </button>
             ))}
           </div>
           {newTaskDeadline && (
@@ -142,15 +143,17 @@ export function AddTaskForm({
                 </Button>
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1">
-                  {PRIORITY_COLORS.map((color, i) => (
+                <div className="flex items-center gap-0.5 border rounded-md overflow-hidden">
+                  {PRIORITY_OPTIONS.map((opt) => (
                     <button
-                      key={i}
-                      onClick={() => onPriorityChange(i)}
-                      className={`w-5 h-5 rounded-full border-2 transition-all ${color} ${newTaskPriority === i ? 'border-foreground scale-110' : 'border-transparent opacity-60 hover:opacity-100'}`}
-                      title={PRIORITY_LABELS[i]}
+                      key={opt.value}
+                      onClick={() => onPriorityChange(opt.value)}
+                      className={`px-2 py-1 text-[10px] font-medium transition-colors ${newTaskPriority === opt.value ? opt.activeClass : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                      title={opt.value === 0 ? 'No priority' : `${opt.label} priority`}
                       type="button"
-                    />
+                    >
+                      {opt.label}
+                    </button>
                   ))}
                 </div>
                 {newTaskDeadline && (
