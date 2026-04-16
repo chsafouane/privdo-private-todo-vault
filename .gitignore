@@ -16,6 +16,7 @@ dist-ssr
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/mcp.json
 .idea
 .DS_Store
 *.suo
@@ -32,6 +33,10 @@ pids
 .devcontainer/
 
 .spark-workbench-id
+
+# Chrome extension local build artifacts (assembled by build-local.sh)
+chrome_extension/assets/index-*.js
+chrome_extension/assets/index-*.css
 
 # Electron Desktop App builds
 release/

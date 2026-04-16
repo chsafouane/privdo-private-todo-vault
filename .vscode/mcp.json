@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--extension"
+      ],
+      "env": {
+        "PLAYWRIGHT_MCP_EXTENSION_TOKEN": "PLAYWRIGHT_MCP_EXTENSION_TOKEN=23SzLbJDspubXS3gNyEiz-usZ9o5Fy4P0FPyVJUqekY"
+      }
+    }
+  }
+}
