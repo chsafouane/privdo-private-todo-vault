@@ -47,6 +47,7 @@ jobs:
       - run: npm run build
       - name: Assemble extension
         run: |
+          mkdir -p chrome_extension/assets/
           rm -f chrome_extension/assets/index-*.js chrome_extension/assets/index-*.css
           cp dist/assets/index-*.js chrome_extension/assets/
           cp dist/assets/index-*.css chrome_extension/assets/
