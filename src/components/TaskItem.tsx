@@ -1,10 +1,21 @@
 import { useRef } from 'react'
-import { Trash, Clock, DotsSixVertical } from '@phosphor-icons/react'
+import { Trash, Clock, DotsSixVertical, ArrowsClockwise } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { motion } from 'framer-motion'
 import { Task } from '@/types'
+
+const PRIORITY_DOT_COLORS = ['', 'bg-green-500', 'bg-yellow-500', 'bg-red-500']
+const PRIORITY_LABELS = ['None', 'Low', 'Medium', 'High']
+const PRIORITY_PICKER_COLORS = ['bg-muted-foreground/30', 'bg-green-500', 'bg-yellow-500', 'bg-red-500']
+const RECURRENCE_OPTIONS = [
+  { value: '', label: '—' },
+  { value: 'daily', label: 'D' },
+  { value: 'weekly', label: 'W' },
+  { value: 'monthly', label: 'M' },
+]
+const RECURRENCE_LABELS: Record<string, string> = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' }
 
 export interface TaskItemProps {
   task: Task
@@ -12,14 +23,38 @@ export interface TaskItemProps {
   isEditing: boolean
   editText: string
   editDeadline: string
+  editPriority: number
+  editRecurrence: string
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onStartEdit: (task: Task) => void
   onEditTextChange: (text: string) => void
   onEditDeadlineChange: (deadline: string) => void
+  onEditPriorityChange: (priority: number) => void
+  onEditRecurrenceChange: (recurrence: string) => void
   onSaveEdit: () => void
   onCancelEdit: () => void
   dragControls?: boolean
+}
+
+function PriorityDot({ priority, muted }: { priority?: number; muted?: boolean }) {
+  if (!priority || priority === 0) return null
+  return (
+    <span
+      className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${PRIORITY_DOT_COLORS[priority]} ${muted ? 'opacity-50' : ''}`}
+      title={PRIORITY_LABELS[priority]}
+    />
+  )
+}
+
+function RecurrenceBadge({ recurrence, muted }: { recurrence?: string; muted?: boolean }) {
+  if (!recurrence) return null
+  return (
+    <span className={`inline-flex items-center gap-0.5 ${muted ? 'text-muted-foreground/50' : 'text-muted-foreground'}`} title={`Repeats ${RECURRENCE_LABELS[recurrence]?.toLowerCase()}`}>
+      <ArrowsClockwise size={10} />
+      <span className="text-[10px]">{RECURRENCE_LABELS[recurrence]?.[0]}</span>
+    </span>
+  )
 }
 
 export function TaskItem({
@@ -28,11 +63,15 @@ export function TaskItem({
   isEditing,
   editText,
   editDeadline,
+  editPriority,
+  editRecurrence,
   onToggle,
   onDelete,
   onStartEdit,
   onEditTextChange,
   onEditDeadlineChange,
+  onEditPriorityChange,
+  onEditRecurrenceChange,
   onSaveEdit,
   onCancelEdit,
   dragControls,
@@ -58,18 +97,26 @@ export function TaskItem({
         />
 
         <div className="flex-1 flex flex-col min-w-0">
-          <label
-            htmlFor={`task-${task.id}`}
-            className="text-sm text-muted-foreground line-through cursor-pointer select-none truncate"
-          >
-            {task.text}
-          </label>
-          {task.deadline && (
-            <div className="flex items-center gap-1 text-[11px] text-muted-foreground/60 mt-0.5">
-              <Clock size={12} />
-              <span>
-                {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-              </span>
+          <div className="flex items-center gap-1.5">
+            <PriorityDot priority={task.priority} muted />
+            <label
+              htmlFor={`task-${task.id}`}
+              className="text-sm text-muted-foreground line-through cursor-pointer select-none truncate"
+            >
+              {task.text}
+            </label>
+          </div>
+          {(task.deadline || task.recurrence) && (
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground/60 mt-0.5">
+              {task.deadline && (
+                <div className="flex items-center gap-1">
+                  <Clock size={12} />
+                  <span>
+                    {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                </div>
+              )}
+              <RecurrenceBadge recurrence={task.recurrence} muted />
             </div>
           )}
         </div>
@@ -122,7 +169,7 @@ export function TaskItem({
         />
 
         {isEditing ? (
-          <div className="flex-1 flex flex-col gap-2">
+          <div className="flex-1 flex flex-col gap-2" data-edit-area>
             <Input
               ref={editInputRef}
               value={editText}
@@ -132,16 +179,16 @@ export function TaskItem({
                 if (e.key === 'Escape') onCancelEdit()
               }}
               onBlur={(e) => {
-                if (!e.relatedTarget?.closest('[data-edit-deadline]')) onSaveEdit()
+                if (!e.relatedTarget?.closest('[data-edit-area]')) onSaveEdit()
               }}
               className="flex-1 h-9"
               autoFocus
             />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Clock size={14} className="text-muted-foreground flex-shrink-0" />
               <Input
                 type="datetime-local"
-                data-edit-deadline
+                data-edit-area
                 value={editDeadline}
                 onChange={(e) => onEditDeadlineChange(e.target.value)}
                 onKeyDown={(e) => {
@@ -149,7 +196,7 @@ export function TaskItem({
                   if (e.key === 'Escape') onCancelEdit()
                 }}
                 onBlur={(e) => {
-                  if (!e.relatedTarget?.closest('[data-edit-deadline]') && e.relatedTarget?.tagName !== 'INPUT') onSaveEdit()
+                  if (!e.relatedTarget?.closest('[data-edit-area]')) onSaveEdit()
                 }}
                 className="h-8 w-fit text-xs bg-background"
               />
@@ -157,9 +204,10 @@ export function TaskItem({
                 <Button
                   variant="ghost"
                   size="icon"
-                  data-edit-deadline
+                  data-edit-area
                   onClick={() => {
                     onEditDeadlineChange('')
+                    onEditRecurrenceChange('')
                     requestAnimationFrame(() => editInputRef.current?.focus())
                   }}
                   className="h-6 w-6 text-muted-foreground hover:text-destructive"
@@ -169,36 +217,72 @@ export function TaskItem({
                 </Button>
               )}
             </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1" data-edit-area>
+                {PRIORITY_PICKER_COLORS.map((color, i) => (
+                  <button
+                    key={i}
+                    data-edit-area
+                    onClick={() => onEditPriorityChange(i)}
+                    className={`w-5 h-5 rounded-full border-2 transition-all ${color} ${editPriority === i ? 'border-foreground scale-110' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                    title={PRIORITY_LABELS[i]}
+                    type="button"
+                  />
+                ))}
+              </div>
+              {editDeadline && (
+                <div className="flex items-center gap-0.5 border rounded-md overflow-hidden" data-edit-area>
+                  {RECURRENCE_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      data-edit-area
+                      onClick={() => onEditRecurrenceChange(opt.value)}
+                      className={`px-2 py-1 text-[10px] font-medium transition-colors ${editRecurrence === opt.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                      title={opt.value ? `Repeat ${opt.value}` : 'No repeat'}
+                      type="button"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col min-w-0">
-            <label
-              htmlFor={`task-${task.id}`}
-              onClick={(e) => {
-                e.preventDefault()
-                onStartEdit(task)
-              }}
-              className="text-sm text-foreground cursor-pointer select-none truncate"
-            >
-              {task.text}
-            </label>
-            {task.deadline && (
-              <div className="flex items-center gap-1 text-[11px] mt-0.5">
-                {new Date(task.deadline).getTime() < Date.now() ? (
-                  <>
-                    <Clock size={12} weight="bold" className="text-destructive" />
-                    <span className="text-destructive font-medium">
-                      {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Clock size={12} className="text-muted-foreground" />
-                    <span className="text-muted-foreground">
-                      {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    </span>
-                  </>
+            <div className="flex items-center gap-1.5">
+              <PriorityDot priority={task.priority} />
+              <label
+                htmlFor={`task-${task.id}`}
+                onClick={(e) => {
+                  e.preventDefault()
+                  onStartEdit(task)
+                }}
+                className="text-sm text-foreground cursor-pointer select-none truncate"
+              >
+                {task.text}
+              </label>
+            </div>
+            {(task.deadline || task.recurrence) && (
+              <div className="flex items-center gap-2 text-[11px] mt-0.5">
+                {task.deadline && (
+                  new Date(task.deadline).getTime() < Date.now() ? (
+                    <div className="flex items-center gap-1">
+                      <Clock size={12} weight="bold" className="text-destructive" />
+                      <span className="text-destructive font-medium">
+                        {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <Clock size={12} className="text-muted-foreground" />
+                      <span className="text-muted-foreground">
+                        {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  )
                 )}
+                <RecurrenceBadge recurrence={task.recurrence} />
               </div>
             )}
           </div>

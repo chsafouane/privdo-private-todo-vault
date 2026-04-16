@@ -10,6 +10,7 @@ interface WidgetTask {
   text: string
   completed: boolean
   deadline?: string
+  priority?: number
 }
 
 let registered = false
@@ -28,7 +29,7 @@ function pickWidgetTask(tasks: Task[]): WidgetTask | null {
   // Truncate text to limit plaintext exposure in widget shared storage
   const maxLen = 50
   const text = task.text.length > maxLen ? task.text.slice(0, maxLen) + '…' : task.text
-  return { text, completed: false, deadline: task.deadline }
+  return { text, completed: false, deadline: task.deadline, priority: task.priority }
 }
 
 /**
