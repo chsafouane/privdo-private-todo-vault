@@ -24,13 +24,15 @@ Available as a **web app**, **PWA**, **macOS desktop app**, **Chrome/Brave exten
 
 | Property | Detail |
 |---|---|
-| **Local Cipher** | AES-256 via CryptoJS |
-| **Key Derivation** | PBKDF2, 600,000 iterations, 16-byte random salt |
+| **Local Cipher** | AES-256-CBC with HMAC-SHA256 (encrypt-then-MAC) |
+| **Key Derivation** | PBKDF2, 600,000 iterations, 16-byte random salt (native Web Crypto API) |
 | **PIN Storage** | Only a PBKDF2-derived hash is stored — never the PIN itself |
+| **Brute Force Protection** | Exponential backoff + 60s lockout at 10 attempts (persisted across reloads) |
 | **Data at Rest** | Encrypted vault blob (lists + tasks) stored in IndexedDB (web/PWA), local filesystem (Electron), or localStorage (extension) |
 | **Sync Encryption** | AES-256 with PBKDF2-derived key (600k iterations, separate from local encryption) |
 | **Sync Server** | Zero-knowledge — stores only encrypted blobs and random channel IDs |
 | **Network** | Zero network calls unless sync is enabled. Local data is always the source of truth. |
+| **CSP** | Content Security Policy enforced in both Electron (response headers) and web (meta tag) |
 
 See [SECURITY.md](SECURITY.md) for more details.
 

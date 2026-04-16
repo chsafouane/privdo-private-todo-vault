@@ -17,6 +17,7 @@ const BASE_DELAY_MS = 1000;
 
 export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
   const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
   const [isSetup, setIsSetup] = useState(true);
   const [storedHash, setStoredHash] = useState<string | null>(null);
   const [storagePath, setStoragePath] = useState<string | null>(null);
@@ -25,10 +26,30 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
   const [pendingFile, setPendingFile] = useState<{ content: any; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Brute force protection state
-  const [failedAttempts, setFailedAttempts] = useState(0);
-  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  // Brute force protection state — persisted to survive page reloads
+  const [failedAttempts, setFailedAttempts] = useState(() => {
+    try { return parseInt(localStorage.getItem('privdo_failed_attempts') || '0', 10) || 0; } catch { return 0; }
+  });
+  const [lockedUntil, setLockedUntil] = useState<number | null>(() => {
+    try {
+      const v = localStorage.getItem('privdo_locked_until');
+      if (!v) return null;
+      const ts = parseInt(v, 10);
+      return ts > Date.now() ? ts : null;
+    } catch { return null; }
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Persist brute force state changes
+  useEffect(() => {
+    try { localStorage.setItem('privdo_failed_attempts', String(failedAttempts)); } catch {}
+  }, [failedAttempts]);
+  useEffect(() => {
+    try {
+      if (lockedUntil) localStorage.setItem('privdo_locked_until', String(lockedUntil));
+      else localStorage.removeItem('privdo_locked_until');
+    } catch {}
+  }, [lockedUntil]);
 
   const isLockedOut = lockedUntil !== null && Date.now() < lockedUntil;
 
@@ -106,6 +127,10 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
       toast.error('PIN must be at least 4 digits');
       return;
     }
+    if (isSetup && pin !== confirmPin) {
+      toast.error('PINs do not match. Please confirm your PIN.');
+      return;
+    }
     if (isLockedOut) {
       toast.error(`Locked. Wait ${lockSeconds}s before retrying.`);
       return;
@@ -118,6 +143,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
     setIsSubmitting(true);
     const currentPin = pin;
     setPin(''); // Clear PIN from state immediately
+    setConfirmPin('');
 
     // Derive hash and encryption keys in parallel (native Web Crypto, fast)
     const [currentHash] = await Promise.all([
@@ -274,6 +300,23 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
             )}
           </div>
 
+          {isSetup && (
+            <div className="space-y-2">
+              <Input
+                type="password"
+                placeholder="Confirm PIN..."
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={confirmPin}
+                onChange={(e) => setConfirmPin(e.target.value.replace(/[^0-9]/g, ''))}
+                className="text-center text-2xl tracking-[0.5em] placeholder:tracking-normal font-mono h-14"
+              />
+              {confirmPin.length > 0 && pin !== confirmPin && (
+                <p className="text-xs text-destructive text-center">PINs do not match</p>
+              )}
+            </div>
+          )}
+
           {isElectron && isSetup && (
             <div className="space-y-2 pt-4 border-t border-border/50">
               <label className="text-sm font-medium block">Data Storage Location</label>
@@ -290,7 +333,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
             </div>
           )}
 
-          <Button type="submit" className="w-full h-12 text-md" disabled={isLockedOut || isSubmitting}>
+          <Button type="submit" className="w-full h-12 text-md" disabled={isLockedOut || isSubmitting || (isSetup && (pin.length < 4 || pin !== confirmPin))}>
             <Keyhole className="w-5 h-5 mr-2" />
             {isLockedOut ? `Locked (${lockSeconds}s)` : isSetup ? 'Secure & Continue' : 'Decrypt Vault'}
           </Button>
