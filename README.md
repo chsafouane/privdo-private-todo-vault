@@ -11,6 +11,8 @@ Available as a **web app**, **PWA**, **macOS desktop app**, **Chrome/Brave exten
 - **Two Sync Modes** — Passphrase-only (no account, maximum privacy) or Email+password (easy to remember, same encryption guarantees).
 - **Multiple Lists** — Organize tasks into named lists inside an encrypted vault. Create, rename, and delete lists with a single tap.
 - **Drag & Drop Reordering** — Reorder tasks by dragging on desktop or mobile.
+- **Priority Levels** — Assign none, low, medium, or high priority to any task. Colored dot indicators (green, yellow, red) provide at-a-glance importance. Scheduled tasks sort by date first, then by priority.
+- **Recurring Tasks** — Set tasks to repeat daily, weekly, or monthly. Completing a recurring task automatically creates the next occurrence with an updated deadline. Recurrence is only available on tasks with a deadline.
 - **Deadlines & Notifications** — Set due dates and get desktop notifications when tasks are overdue.
 - **Search** — Filter tasks by text across the active list.
 - **Swipe to Delete** — Swipe left on mobile to delete a task, with a 5-second undo window.

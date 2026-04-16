@@ -99,6 +99,20 @@ A task management app with a vault-based data model (multiple named lists, each 
 - Progression: Export → Downloads encrypted `.json` file. Import → File picker → Decrypt with PIN → Merge into current list or load vault
 - Success criteria: Supports both vault format and legacy single-list format on import
 
+**Priority Levels**
+- Functionality: Assign a priority level (none, low, medium, high) to any task. Displayed as a colored dot (none=hidden, low=green, medium=yellow, high=red).
+- Purpose: Quickly identify the most important tasks at a glance
+- Trigger: Click one of the four priority circles when creating or editing a task
+- Progression: Tap priority dot → Selected dot gets a ring highlight → Task displays colored priority indicator → Scheduled tasks sort by date then priority descending
+- Success criteria: Priority persists across refreshes and syncs; colored dots are visible but unobtrusive; sorting feels natural
+
+**Recurring Tasks**
+- Functionality: Set a task to recur daily, weekly, or monthly. On completion, the next occurrence is automatically created with an updated deadline.
+- Purpose: Support repeating tasks (habits, reviews, recurring chores) without manual re-creation
+- Trigger: Select a recurrence frequency (D/W/M) when creating or editing a task that has a deadline
+- Progression: Set deadline → Recurrence picker appears → Select frequency → Complete task → Next occurrence auto-created with new deadline → Toast confirms "Next occurrence created"
+- Success criteria: Recurrence picker only visible when deadline is set; overdue recurring tasks use today + interval (not missed date); completed instance has recurrence cleared; new instance inherits text, list, and priority
+
 **Dark / Light Mode**
 - Functionality: Toggle between dark and light themes
 - Purpose: Comfortable viewing in any lighting condition
@@ -116,6 +130,8 @@ A task management app with a vault-based data model (multiple named lists, each 
 
 - **Empty Task Submission**: Prevent creating tasks with only whitespace — trim input and ignore if empty
 - **Rapid Task Creation**: Handle multiple rapid Enter presses gracefully without duplicate tasks
+- **Recurring Task Overdue**: When a recurring task is completed past its deadline, the next occurrence uses today + interval (not the missed deadline + interval) to avoid cascading overdue tasks
+- **Recurrence Without Deadline**: Recurrence picker is hidden when no deadline is set; clearing a deadline also clears recurrence
 - **Empty State**: Show helpful empty state message when no tasks exist to guide new users
 - **All Tasks Completed**: Show "All done! 🎉" celebration message
 - **Very Long Task Text**: Allow long text but truncate display with ellipsis, show full text when editing
@@ -194,6 +210,7 @@ Animations should provide subtle confirmation of actions and maintain spatial co
   - Clock (deadline indicator)
   - Lock (encryption / PIN screen)
   - Cloud / CloudSlash (sync status)
+  - ArrowsClockwise (recurring task badge)
   - CaretRight (list selector trigger)
   - Sun / Moon (theme toggle)
   - Export / UploadSimple (export/import)
