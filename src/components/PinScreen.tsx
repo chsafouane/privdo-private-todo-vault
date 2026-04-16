@@ -56,6 +56,8 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
         const delay = BASE_DELAY_MS * Math.pow(2, next - 3);
         setLockedUntil(Date.now() + delay);
         toast.error(`Incorrect PIN. Wait ${Math.ceil(delay / 1000)}s before retrying.`);
+      } else {
+        toast.error('Incorrect PIN. Please try again.');
       }
       return next;
     });
