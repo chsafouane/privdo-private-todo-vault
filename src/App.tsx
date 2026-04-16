@@ -421,8 +421,8 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <div className="flex-1 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col items-center">
+      <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto shadow-sm border-x border-border/50">
         <div className="flex-1 flex flex-col bg-card overflow-hidden">
           {/* Compact header */}
           <div className="px-4 pt-4 pb-3 border-b border-border bg-gradient-to-br from-primary/5 to-accent/5">
