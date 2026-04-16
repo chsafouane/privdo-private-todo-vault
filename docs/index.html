@@ -215,8 +215,9 @@
     .download-section { text-align: center; }
     .download-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(2, minmax(200px, 320px));
       gap: 16px; max-width: 700px; margin: 0 auto;
+      justify-content: center;
     }
     .download-card {
       background: var(--bg-alt); border: 1px solid var(--border);
@@ -427,14 +428,9 @@
   <section class="section download-section" id="download" style="border-top: 1px solid var(--border);">
     <div class="section-label">Download</div>
     <h2 class="section-title">Get Privdo</h2>
-    <p class="section-desc" style="margin-left:auto; margin-right:auto;">Free, open source, and available on every major platform. All builds are attached to each <a href="https://github.com/chsafouane/privdo-private-todo-vault/releases/latest">GitHub release</a>.</p>
+    <p class="section-desc" style="margin-left:auto; margin-right:auto;">Free, open source, and available on every major platform. More builds (Windows, Android, Web) are attached to each <a href="https://github.com/chsafouane/privdo-private-todo-vault/releases/latest">GitHub release</a>.</p>
 
     <div class="download-grid">
-      <a href="https://github.com/chsafouane/privdo-private-todo-vault/releases/latest" class="download-card">
-        <span class="dl-icon">🪟</span>
-        <span class="dl-label">Windows</span>
-        <span class="dl-meta">.exe — x64 installer</span>
-      </a>
       <div class="download-card" style="cursor: default;">
         <span class="dl-icon">🍎</span>
         <span class="dl-label">macOS</span>
@@ -442,19 +438,9 @@
         <a href="https://github.com/chsafouane/privdo-private-todo-vault/releases/latest" class="dl-alt">or download .dmg</a>
       </div>
       <a href="https://github.com/chsafouane/privdo-private-todo-vault/releases/latest" class="download-card">
-        <span class="dl-icon">🤖</span>
-        <span class="dl-label">Android</span>
-        <span class="dl-meta">.apk</span>
-      </a>
-      <a href="https://github.com/chsafouane/privdo-private-todo-vault/releases/latest" class="download-card">
         <span class="dl-icon">🧩</span>
         <span class="dl-label">Chrome / Brave</span>
         <span class="dl-meta">Extension .zip</span>
-      </a>
-      <a href="./app/" class="download-card">
-        <span class="dl-icon">🌐</span>
-        <span class="dl-label">Web / PWA</span>
-        <span class="dl-meta">Open in browser — installable</span>
       </a>
     </div>
   </section>
