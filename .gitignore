@@ -47,3 +47,4 @@ android/.gradle/
 android/app/build/
 supabase/.temp/
 privdo-release.keystore
+todos.db

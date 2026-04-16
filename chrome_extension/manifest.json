@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Privdo",
   "description": "Private todo lists encrypted on your device. PIN-locked lists with deadlines, drag & drop, and optional encrypted sync.",
-  "version": "1.0.7",
+  "version": "1.0.13",
   "action": {
     "default_popup": "index.html",
     "default_icon": {

@@ -241,7 +241,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
     : 'Browser local storage (IndexedDB)';
 
   return (
-    <div className="flex w-full min-h-screen items-center justify-center p-6 sm:p-12 md:p-24 bg-background">
+    <div className="flex w-full min-h-screen items-center justify-center p-6 bg-background">
       <div className="max-w-md w-full space-y-8 bg-card border border-border/40 p-8 rounded-2xl shadow-xl">
         <div className="text-center space-y-4">
           <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-6">
@@ -253,6 +253,15 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
           <p className="text-muted-foreground text-sm">
             {isSetup ? 'Create a secure PIN or passphrase. This encrypts all your data entirely on your device. Do not forget it!' : 'Enter your PIN to decrypt your local tasks.'}
           </p>
+          {isSetup && storedHash && (
+            <button
+              type="button"
+              className="text-xs text-primary hover:underline"
+              onClick={() => setIsSetup(false)}
+            >
+              Back to unlock
+            </button>
+          )}
         </div>
 
         {!isSetup && (
@@ -383,6 +392,17 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
                 <FileArrowUp className="w-5 h-5" />
                 Load a vault file
               </Button>
+              {!isSetup && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full h-11 gap-2 text-muted-foreground"
+                  onClick={() => { setIsSetup(true); setPin(''); setConfirmPin(''); setStoragePath(null); }}
+                >
+                  <LockKey className="w-5 h-5" />
+                  Create a new vault
+                </Button>
+              )}
             </>
           )}
         </div>
