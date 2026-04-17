@@ -65,15 +65,17 @@ export function ListSelector({
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Your Lists</DialogTitle>
+          <DialogTitle className="text-lg font-bold tracking-tight">Your lists</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-1 max-h-64 overflow-y-auto">
+        <div className="space-y-1 max-h-64 overflow-y-auto -mx-1 px-1">
           {liveLists.map(list => (
             <div
               key={list.id}
-              className={`group flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-colors ${
-                list.id === activeListId ? 'bg-accent/10 text-accent-foreground' : 'hover:bg-muted/50'
+              className={`group flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                list.id === activeListId
+                  ? 'bg-accent-soft text-accent font-semibold'
+                  : 'hover:bg-surface-2'
               }`}
               onClick={() => {
                 if (editingId !== list.id) {
@@ -130,16 +132,21 @@ export function ListSelector({
           ))}
         </div>
 
-        <div className="flex items-center gap-2 pt-2 border-t border-border">
+        <div className="flex items-center gap-2 pt-3 border-t border-border">
           <Input
             value={newListName}
             onChange={e => setNewListName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
-            placeholder="New list name..."
+            placeholder="New list name…"
             className="h-9 text-sm"
           />
-          <Button size="sm" onClick={handleCreate} disabled={!newListName.trim()}>
-            <Plus size={14} className="mr-1" />
+          <Button
+            size="sm"
+            onClick={handleCreate}
+            disabled={!newListName.trim()}
+            className="h-9 gap-1 bg-gradient-to-br from-primary to-primary-strong text-primary-foreground shadow-[var(--shadow-brand)] ring-1 ring-inset ring-white/15 hover:brightness-105 disabled:shadow-none disabled:ring-0 disabled:from-muted disabled:to-muted disabled:text-muted-foreground"
+          >
+            <Plus size={14} weight="bold" />
             Add
           </Button>
         </div>

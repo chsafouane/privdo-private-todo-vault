@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { hashPin, legacyHashPin, setEncryptionKeyFromPin, decryptDataWithPin, constantTimeEqual, clearEncryptionKey, restoreSalt, getCurrentSalt } from '@/lib/encryption';
 import { isValidTaskArray } from '@/types';
 import { toast } from 'sonner';
+import { Logo } from '@/components/Logo';
 
 interface PinScreenProps {
   onUnlock: (pinTargetHash: string, folderPath: string | null, dbName?: string) => void;
@@ -241,34 +242,41 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
     : 'Browser local storage (IndexedDB)';
 
   return (
-    <div className="flex w-full min-h-screen items-center justify-center p-6 bg-background">
-      <div className="max-w-md w-full space-y-8 bg-card border border-border/40 p-8 rounded-2xl shadow-xl">
+    <div className="flex w-full min-h-screen items-center justify-center p-6 bg-background bg-dots">
+      <div className="max-w-md w-full space-y-7 bg-card border border-border/60 p-8 rounded-2xl shadow-[var(--shadow-lg)]">
         <div className="text-center space-y-4">
-          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-6">
-            <LockKey className="w-6 h-6 text-primary" weight="duotone" />
+          <div className="flex justify-center mb-2">
+            <Logo size="xl" />
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            {isSetup ? 'Setup Privdo' : 'Unlock Privdo'}
-          </h2>
-          <p className="text-muted-foreground text-sm">
-            {isSetup ? 'Create a secure PIN or passphrase. This encrypts all your data entirely on your device. Do not forget it!' : 'Enter your PIN to decrypt your local tasks.'}
+          <div className="space-y-1.5">
+            <h1 className="text-sm font-bold uppercase tracking-[0.2em] text-accent">Privdo</h1>
+            <h2 className="text-2xl font-bold tracking-tight">
+              {isSetup ? 'Set up your vault' : 'Unlock your vault'}
+            </h2>
+          </div>
+          <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+            {isSetup ? 'Create a PIN or passphrase. It encrypts everything on this device — we can never recover it for you.' : 'Enter your PIN to decrypt your local tasks.'}
           </p>
           {isSetup && storedHash && (
             <button
               type="button"
-              className="text-xs text-primary hover:underline"
+              className="text-xs text-primary hover:underline font-medium"
               onClick={() => setIsSetup(false)}
             >
-              Back to unlock
+              ← Back to unlock
             </button>
           )}
         </div>
 
         {!isSetup && (
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground font-mono truncate" title={storageLocationLabel}>
-              {storageLocationLabel}
-            </p>
+          <div className="flex justify-center">
+            <span
+              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-accent bg-accent-soft px-2.5 py-1 rounded-full max-w-full truncate"
+              title={storageLocationLabel}
+            >
+              <FolderOpen size={12} weight="bold" />
+              <span className="truncate">{storageLocationLabel}</span>
+            </span>
           </div>
         )}
 
@@ -291,10 +299,10 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
                       className={`h-1.5 flex-1 rounded-full transition-colors ${
                         pin.length >= i * 2
                           ? pin.length >= 6
-                            ? 'bg-green-500'
+                            ? 'bg-priority-low'
                             : pin.length >= 4
-                            ? 'bg-yellow-500'
-                            : 'bg-red-500'
+                            ? 'bg-priority-med'
+                            : 'bg-priority-high'
                           : 'bg-muted'
                       }`}
                     />
@@ -338,7 +346,7 @@ export function PinScreen({ onUnlock, onLoadFile }: PinScreenProps) {
             </div>
           )}
 
-          <Button type="submit" className="w-full h-12 text-md" disabled={isLockedOut || isSubmitting || (isSetup && (pin.length < 4 || pin !== confirmPin))}>
+          <Button type="submit" className="w-full h-12 text-md font-semibold bg-gradient-to-br from-primary to-primary-strong text-primary-foreground shadow-[var(--shadow-brand)] ring-1 ring-inset ring-white/15 hover:brightness-105 disabled:shadow-none disabled:ring-0 disabled:from-muted disabled:to-muted disabled:text-muted-foreground" disabled={isLockedOut || isSubmitting || (isSetup && (pin.length < 4 || pin !== confirmPin))}>
             <Keyhole className="w-5 h-5 mr-2" />
             {isLockedOut ? `Locked (${lockSeconds}s)` : isSetup ? 'Secure & Continue' : 'Decrypt Vault'}
           </Button>
