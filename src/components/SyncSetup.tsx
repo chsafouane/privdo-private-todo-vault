@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Key, EnvelopeSimple, Warning, Copy, Check } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +29,7 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const reset = () => {
     setStep('choose');
@@ -99,22 +101,31 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-4">
-              <Button variant="outline" className="w-full justify-start h-auto py-3 px-4" onClick={handleGenerate}>
+              <Button variant="outline" className="w-full justify-start h-auto py-3 px-4 gap-3" onClick={handleGenerate}>
+                <span className="flex items-center justify-center w-10 h-10 rounded-xl bg-accent-soft text-accent flex-shrink-0">
+                  <Key size={20} weight="fill" />
+                </span>
                 <div className="text-left whitespace-normal min-w-0">
-                  <div className="font-medium">🔑 Passphrase — New Device</div>
+                  <div className="font-medium">Passphrase — New Device</div>
                   <div className="text-xs text-muted-foreground mt-0.5">Generate a passphrase to start syncing. No email needed.</div>
                 </div>
               </Button>
-              <Button variant="outline" className="w-full justify-start h-auto py-3 px-4" onClick={() => setStep('passphrase-join')}>
+              <Button variant="outline" className="w-full justify-start h-auto py-3 px-4 gap-3" onClick={() => setStep('passphrase-join')}>
+                <span className="flex items-center justify-center w-10 h-10 rounded-xl bg-accent-soft text-accent flex-shrink-0">
+                  <Key size={20} />
+                </span>
                 <div className="text-left whitespace-normal min-w-0">
-                  <div className="font-medium">🔑 Passphrase — Join Existing</div>
+                  <div className="font-medium">Passphrase — Join Existing</div>
                   <div className="text-xs text-muted-foreground mt-0.5">Enter a passphrase from another device.</div>
                 </div>
               </Button>
               {isSupabaseConfigured() && (
-                <Button variant="outline" className="w-full justify-start h-auto py-3 px-4" onClick={() => setStep('email')}>
+                <Button variant="outline" className="w-full justify-start h-auto py-3 px-4 gap-3" onClick={() => setStep('email')}>
+                  <span className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary-soft text-primary flex-shrink-0">
+                    <EnvelopeSimple size={20} weight="fill" />
+                  </span>
                   <div className="text-left whitespace-normal min-w-0">
-                    <div className="font-medium">📧 Email & Password</div>
+                    <div className="font-medium">Email &amp; Password</div>
                     <div className="text-xs text-muted-foreground mt-0.5">Use your email and a password. Easier to remember.</div>
                   </div>
                 </Button>
@@ -132,25 +143,29 @@ export function SyncSetup({ open, onClose, onPassphraseSetup, onEmailSetup }: Sy
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              <div className="bg-muted rounded-lg p-4 font-mono text-sm leading-relaxed select-all break-words">
+              <div className="bg-muted/60 border border-border/70 rounded-xl p-4 font-mono text-sm leading-relaxed select-all break-words">
                 {generatedPassphrase}
               </div>
-              <p className="text-xs text-destructive mt-3">
-                ⚠️ If you lose this passphrase, your cloud data cannot be recovered.
+              <p className="flex items-center gap-1.5 text-xs text-destructive mt-3">
+                <Warning size={14} weight="fill" />
+                If you lose this passphrase, your cloud data cannot be recovered.
               </p>
             </div>
             <DialogFooter className="flex gap-2">
               <Button variant="secondary" onClick={() => setStep('choose')}>Back</Button>
               <Button
                 variant="outline"
+                className="gap-1.5"
                 onClick={() => {
                   navigator.clipboard.writeText(generatedPassphrase);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
                   setTimeout(() => {
                     navigator.clipboard.writeText('').catch(() => {});
                   }, 30_000);
                 }}
               >
-                Copy
+                {copied ? <><Check size={14} weight="bold" /> Copied</> : <><Copy size={14} /> Copy</>}
               </Button>
               <Button onClick={handlePassphraseConfirm}>I've Saved It</Button>
             </DialogFooter>
