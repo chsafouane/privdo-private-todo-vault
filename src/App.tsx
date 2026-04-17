@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, X, CloudCheck, CaretRight, List, SortAscending, SortDescending, Clock } from '@phosphor-icons/react'
+import { Plus, LockKey, DownloadSimple, UploadSimple, Moon, Sun, TrashSimple, CaretDown, MagnifyingGlass, X, CloudCheck, CaretRight, List, SortAscending, SortDescending, Clock, HardDrives, FolderOpen, FileArrowDown } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -20,6 +20,9 @@ import { SyncSettings } from '@/components/SyncSettings'
 import { SyncStatusIcon } from '@/components/SyncStatusIcon'
 import { useSyncEngine } from '@/hooks/useSyncEngine'
 import { ListSelector } from '@/components/ListSelector'
+import { Logo } from '@/components/Logo'
+import { SectionHeader } from '@/components/SectionHeader'
+import { EmptyState } from '@/components/EmptyState'
 
 function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; loadedTasks?: Task[] | null }) {
   const [vault, setVault, isVaultReady] = useEncryptedStorage<Vault>('vault', DEFAULT_VAULT, storagePath)
@@ -445,45 +448,27 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center">
-      <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto shadow-sm border-x border-border/50">
-        <div className="flex-1 flex flex-col bg-card overflow-hidden">
-          {/* Compact header */}
-          <div className="px-4 pt-4 pb-3 border-b border-border bg-gradient-to-br from-primary/5 to-accent/5">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setListSelectorOpen(true)}
-                    className="flex items-center gap-1 text-lg font-bold text-foreground tracking-tight truncate hover:text-accent transition-colors"
-                    title="Switch list"
-                  >
-                    {activeList?.name || 'My Tasks'}
-                    <CaretRight size={14} className="text-muted-foreground flex-shrink-0" />
-                  </button>
-                  {activeTasks.length > 0 && (
-                    <Badge variant="secondary" className="text-xs flex-shrink-0">
-                      {activeTasks.length}
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-[10px] text-muted-foreground font-mono truncate" title={isLoadedFile ? 'Loaded from file' : (storagePath || 'Browser local storage')}>
-                  {isLoadedFile ? 'Loaded from file' : (storagePath || 'Browser local storage')}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setSearchOpen(o => !o); setSearchQuery('') }} title="Search">
-                  <MagnifyingGlass size={16} />
+    <div className="min-h-screen bg-background flex flex-col items-stretch sm:items-center sm:py-6 md:py-10">
+      <div className="flex-1 sm:flex-initial flex flex-col w-full max-w-2xl mx-auto bg-card sm:rounded-2xl sm:shadow-[var(--shadow-lg)] sm:border sm:border-border/60 overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header — two-row layout */}
+          <div className="px-5 pt-5 pb-4 border-b border-border/70 bg-surface-1">
+            {/* Row 1: brand + icon cluster */}
+            <div className="flex items-center justify-between mb-4">
+              <Logo size="md" showWordmark />
+              <div className="flex items-center gap-0.5">
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg" onClick={() => { setSearchOpen(o => !o); setSearchQuery('') }} title="Search">
+                  <MagnifyingGlass size={18} />
                 </Button>
                 <SyncStatusIcon
                   status={syncConfig?.enabled ? syncState.status : 'disabled'}
                   onClick={() => syncConfig?.enabled ? setSyncSettingsOpen(true) : setSyncSetupOpen(true)}
                 />
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDarkMode(d => !d)} title="Toggle theme">
-                  {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg" onClick={() => setDarkMode(d => !d)} title="Toggle theme">
+                  {darkMode ? <Sun size={18} /> : <Moon size={18} />}
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={triggerExport} title="Export">
-                  <DownloadSimple size={16} />
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg" onClick={triggerExport} title="Export">
+                  <DownloadSimple size={18} />
                 </Button>
                 <div className="relative">
                   <Input
@@ -493,10 +478,41 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
                     onChange={triggerImport}
                     title="Import Database"
                   />
-                  <Button variant="ghost" size="icon" className="h-8 w-8 pointer-events-none">
-                    <UploadSimple size={16} />
+                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg pointer-events-none">
+                    <UploadSimple size={18} />
                   </Button>
                 </div>
+              </div>
+            </div>
+
+            {/* Row 2: list title + count + storage chip */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <button
+                onClick={() => setListSelectorOpen(true)}
+                className="group flex items-center gap-1.5 min-w-0 text-left transition-colors"
+                title="Switch list"
+              >
+                <h1 className="text-2xl font-bold tracking-tight text-foreground truncate group-hover:text-primary transition-colors">
+                  {activeList?.name || 'My Tasks'}
+                </h1>
+                <CaretRight size={16} weight="bold" className="text-muted-foreground/70 group-hover:text-primary transition-colors flex-shrink-0" />
+                {activeTasks.length > 0 && (
+                  <Badge variant="secondary" className="ml-1.5 flex-shrink-0 rounded-full px-2 h-5 text-[11px] font-semibold">
+                    {activeTasks.length}
+                  </Badge>
+                )}
+              </button>
+              <div
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-accent bg-accent-soft px-2.5 py-1 rounded-full max-w-full truncate"
+                title={isLoadedFile ? 'Loaded from file' : (storagePath || 'Browser local storage')}
+              >
+                {isLoadedFile ? (
+                  <><FileArrowDown size={12} weight="bold" /><span className="truncate">Loaded from file</span></>
+                ) : storagePath ? (
+                  <><FolderOpen size={12} weight="bold" /><span className="truncate">{storagePath}</span></>
+                ) : (
+                  <><HardDrives size={12} weight="bold" /><span className="truncate">Local vault</span></>
+                )}
               </div>
             </div>
 
@@ -507,22 +523,22 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.15 }}
+                  transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
                   className="overflow-hidden"
                 >
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mt-4">
                     <div className="relative flex-1">
-                      <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
                         placeholder="Search tasks..."
-                        className="h-9 pl-8 text-sm bg-background"
+                        className="h-10 pl-9 text-sm bg-background"
                         autoFocus
                       />
                       {searchQuery && (
-                        <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                          <X size={14} />
+                        <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                          <X size={15} />
                         </button>
                       )}
                     </div>
@@ -531,50 +547,60 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
               )}
             </AnimatePresence>
 
-            <AddTaskForm
-              newTaskText={newTaskText}
-              newTaskDeadline={newTaskDeadline}
-              newTaskPriority={newTaskPriority}
-              newTaskRecurrence={newTaskRecurrence}
-              addOpen={addOpen}
-              onTextChange={setNewTaskText}
-              onDeadlineChange={setNewTaskDeadline}
-              onPriorityChange={setNewTaskPriority}
-              onRecurrenceChange={setNewTaskRecurrence}
-              onAdd={addTask}
-            />
+            <div className="mt-4">
+              <AddTaskForm
+                newTaskText={newTaskText}
+                newTaskDeadline={newTaskDeadline}
+                newTaskPriority={newTaskPriority}
+                newTaskRecurrence={newTaskRecurrence}
+                addOpen={addOpen}
+                onTextChange={setNewTaskText}
+                onDeadlineChange={setNewTaskDeadline}
+                onPriorityChange={setNewTaskPriority}
+                onRecurrenceChange={setNewTaskRecurrence}
+                onAdd={addTask}
+              />
+            </div>
           </div>
 
           <div className="flex-1 p-4 space-y-4 overflow-y-auto pb-24 sm:pb-4">
             {liveTasks.length === 0 ? (
-              <div className="text-center py-16 px-4">
-                <p className="text-muted-foreground font-medium">No tasks yet</p>
-                <p className="text-sm text-muted-foreground mt-1">Add your first task to get started</p>
-              </div>
+              <EmptyState
+                size="lg"
+                icon={<Logo size="xl" />}
+                title="Your vault is empty"
+                description="Add your first task above — everything is encrypted and stays on this device."
+              />
             ) : activeTasks.length === 0 && completedTasks.length === 0 && searchQuery ? (
-              <div className="text-center py-12 px-4">
-                <p className="text-muted-foreground font-medium">No matching tasks</p>
-                <p className="text-sm text-muted-foreground mt-1">Try a different search term</p>
-              </div>
+              <EmptyState
+                icon={
+                  <div className="w-14 h-14 rounded-2xl bg-surface-2 flex items-center justify-center">
+                    <MagnifyingGlass size={22} className="text-muted-foreground" />
+                  </div>
+                }
+                title="No matching tasks"
+                description="Try a different search term"
+              />
             ) : (
               <>
                 {activeTasks.length > 0 && (
                   <>
                     {scheduledTasks.length > 0 && (
                       <div className="space-y-1">
-                        <div className="flex items-center justify-between px-3 mb-1">
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                            <Clock size={12} />
-                            Upcoming ({scheduledTasks.length})
-                          </div>
-                          <button
-                            onClick={toggleDeadlineSort}
-                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors p-1 rounded"
-                            title={deadlineSortAsc ? 'Earliest first' : 'Latest first'}
-                          >
-                            {deadlineSortAsc ? <SortAscending size={14} /> : <SortDescending size={14} />}
-                          </button>
-                        </div>
+                        <SectionHeader
+                          icon={Clock}
+                          title="Upcoming"
+                          count={scheduledTasks.length}
+                          action={
+                            <button
+                              onClick={toggleDeadlineSort}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-surface-2"
+                              title={deadlineSortAsc ? 'Earliest first' : 'Latest first'}
+                            >
+                              {deadlineSortAsc ? <SortAscending size={14} /> : <SortDescending size={14} />}
+                            </button>
+                          }
+                        />
                         <AnimatePresence mode="popLayout">
                           {scheduledTasks.map((task) => (
                             <TaskItem
@@ -601,15 +627,17 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
                     )}
 
                     {scheduledTasks.length > 0 && unscheduledTasks.length > 0 && (
-                      <Separator className="my-3" />
+                      <div className="h-2" aria-hidden />
                     )}
 
                     {unscheduledTasks.length > 0 && (
                       <div className="space-y-1">
                         {scheduledTasks.length > 0 && (
-                          <div className="flex items-center gap-1.5 px-3 mb-1 text-xs font-medium text-muted-foreground">
-                            Other ({unscheduledTasks.length})
-                          </div>
+                          <SectionHeader
+                            icon={List}
+                            title="Other"
+                            count={unscheduledTasks.length}
+                          />
                         )}
                         <Reorder.Group axis="y" values={unscheduledTasks} onReorder={handleReorder} className="space-y-1" as="div">
                           {unscheduledTasks.map((task) => (
@@ -642,24 +670,24 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
 
                 {completedTasks.length > 0 && (
                   <>
-                    {activeTasks.length > 0 && <Separator className="my-4" />}
-                    
-                    <div className="space-y-1">
+                    {activeTasks.length > 0 && <Separator className="my-5 opacity-60" />}
+
+                    <div className="space-y-1 opacity-80">
                       <div className="flex items-center justify-between px-3 mb-2">
                         <button
                           onClick={() => setCompletedCollapsed(c => !c)}
-                          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                          className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                         >
-                          <motion.div animate={{ rotate: completedCollapsed ? -90 : 0 }} transition={{ duration: 0.15 }}>
+                          <motion.div animate={{ rotate: completedCollapsed ? -90 : 0 }} transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}>
                             <CaretDown size={12} weight="bold" />
                           </motion.div>
-                          Completed ({completedTasks.length})
+                          Completed <span className="text-muted-foreground/60 font-medium normal-case tracking-normal">· {completedTasks.length}</span>
                         </button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={clearCompleted}
-                          className="h-6 text-[11px] text-muted-foreground hover:text-destructive gap-1"
+                          className="h-7 text-[11px] text-muted-foreground hover:text-destructive gap-1 rounded-md"
                         >
                           <TrashSimple size={12} />
                           Clear
@@ -693,34 +721,40 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
                 )}
 
                 {activeTasks.length === 0 && completedTasks.length > 0 && !searchQuery && (
-                  <div className="text-center py-8 px-4">
-                    <div className="w-16 h-16 rounded-full bg-accent/10 mx-auto mb-4 flex items-center justify-center">
+                  <EmptyState
+                    size="sm"
+                    icon={
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 200, damping: 10 }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 12 }}
+                        className="w-16 h-16 rounded-2xl bg-accent-soft text-accent flex items-center justify-center text-2xl"
                       >
                         🎉
                       </motion.div>
-                    </div>
-                    <p className="text-foreground font-medium">All done!</p>
-                    <p className="text-sm text-muted-foreground mt-1">Great job completing all your tasks</p>
-                  </div>
+                    }
+                    title="All done!"
+                    description="Great job completing all your tasks"
+                  />
                 )}
               </>
             )}
           </div>
 
-          {/* Footer */}
-          <div className="px-4 py-3 border-t border-border bg-muted/30">
-            <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
-              <LockKey size={14} weight="fill" className="text-accent" />
-              <span>Encrypted & stored locally</span>
+          {/* Footer — privacy value prop as a brand moment */}
+          <div className="px-5 py-3.5 border-t border-border/70 bg-surface-1">
+            <div className="flex items-center justify-center gap-2 text-xs">
+              <div className="flex items-center gap-1.5 text-accent font-medium">
+                <LockKey size={14} weight="fill" />
+                <span>Encrypted · stored on this device</span>
+              </div>
               {syncConfig?.enabled && (
                 <>
-                  <span>·</span>
-                  <CloudCheck size={14} className="text-green-500" />
-                  <span>Synced</span>
+                  <span className="text-border" aria-hidden>•</span>
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <CloudCheck size={14} weight="fill" className="text-accent" />
+                    <span>End-to-end synced</span>
+                  </div>
                 </>
               )}
             </div>
@@ -733,10 +767,10 @@ function VaultApp({ storagePath, loadedTasks }: { storagePath: string | null; lo
         <Button
           onClick={() => setAddOpen(o => !o)}
           size="icon"
-          className="h-14 w-14 rounded-full shadow-lg"
+          className="h-14 w-14 rounded-full bg-gradient-to-br from-primary to-primary-strong text-primary-foreground shadow-[var(--shadow-brand)] ring-1 ring-inset ring-white/15 hover:brightness-105 active:brightness-95"
         >
-          <motion.div animate={{ rotate: addOpen ? 45 : 0 }} transition={{ duration: 0.15 }}>
-            <Plus size={24} weight="bold" />
+          <motion.div animate={{ rotate: addOpen ? 45 : 0 }} transition={{ duration: 0.18, ease: [0.3, 0, 0, 1] }}>
+            <Plus size={26} weight="bold" />
           </motion.div>
         </Button>
       </div>

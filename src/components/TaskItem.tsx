@@ -9,15 +9,15 @@ import { Task } from '@/types'
 const PRIORITY_LABELS = ['None', 'Low', 'Med', 'High']
 const PRIORITY_BADGE_CLASSES = [
   '',
-  'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900/40',
-  'text-yellow-700 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/40',
-  'text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/40',
+  'text-priority-low bg-priority-low-soft',
+  'text-priority-med bg-priority-med-soft',
+  'text-priority-high bg-priority-high-soft',
 ]
 const PRIORITY_PICKER_OPTIONS = [
   { label: '—', value: 0, activeClass: 'bg-muted text-foreground' },
-  { label: 'Low', value: 1, activeClass: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' },
-  { label: 'Med', value: 2, activeClass: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400' },
-  { label: 'High', value: 3, activeClass: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' },
+  { label: 'Low', value: 1, activeClass: 'bg-priority-low-soft text-priority-low' },
+  { label: 'Med', value: 2, activeClass: 'bg-priority-med-soft text-priority-med' },
+  { label: 'High', value: 3, activeClass: 'bg-priority-high-soft text-priority-high' },
 ]
 const RECURRENCE_OPTIONS = [
   { value: '', label: '—' },
@@ -51,7 +51,7 @@ function PriorityBadge({ priority, muted }: { priority?: number; muted?: boolean
   if (!priority || priority === 0) return null
   return (
     <span
-      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${PRIORITY_BADGE_CLASSES[priority]} ${muted ? 'opacity-50' : ''}`}
+      className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide flex-shrink-0 ${PRIORITY_BADGE_CLASSES[priority]} ${muted ? 'opacity-50' : ''}`}
       title={`${PRIORITY_LABELS[priority]} priority`}
     >
       {PRIORITY_LABELS[priority]}
@@ -99,7 +99,7 @@ export function TaskItem({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, x: -100 }}
         transition={{ duration: 0.2 }}
-        className="group flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
+        className="group flex items-center gap-3 p-3 rounded-xl hover:bg-surface-1 transition-colors"
       >
         <Checkbox
           id={`task-${task.id}`}
@@ -156,7 +156,7 @@ export function TaskItem({
       className="relative"
     >
       {/* Swipe delete background */}
-      <div className="absolute inset-0 rounded-lg bg-destructive/10 flex items-center justify-end pr-4 pointer-events-none">
+      <div className="absolute inset-0 rounded-xl bg-destructive-soft flex items-center justify-end pr-4 pointer-events-none">
         <Trash size={18} className="text-destructive" />
       </div>
       <motion.div
@@ -166,19 +166,31 @@ export function TaskItem({
         onDragEnd={(_e, info) => {
           if (info.offset.x < -100) onDelete(task.id)
         }}
-        className="group flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-muted/50 transition-colors touch-pan-y relative"
+        className={`group flex items-center gap-3 p-3.5 rounded-xl touch-pan-y relative border transition-[background-color,box-shadow,border-color] duration-150 ${
+          isEditing
+            ? 'bg-surface-2 shadow-[var(--shadow-md)] border-primary/25 ring-1 ring-primary/15'
+            : 'bg-card border-transparent hover:bg-surface-2 hover:shadow-[var(--shadow-sm)] hover:border-border/60'
+        }`}
       >
         {dragControls && (
-          <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground touch-none" data-drag-handle>
-            <DotsSixVertical size={16} weight="bold" />
+          <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-none" data-drag-handle>
+            <DotsSixVertical size={18} weight="bold" />
           </div>
         )}
-        <Checkbox
-          id={`task-${task.id}`}
-          checked={task.completed}
-          onCheckedChange={() => onToggle(task.id)}
-          className="mt-0.5 flex-shrink-0"
-        />
+        <motion.span
+          key={`cb-${task.completed}`}
+          initial={{ scale: 0.85 }}
+          animate={{ scale: [0.85, 1.12, 1] }}
+          transition={{ duration: 0.26, ease: [0.3, 0, 0, 1] }}
+          className="flex-shrink-0"
+        >
+          <Checkbox
+            id={`task-${task.id}`}
+            checked={task.completed}
+            onCheckedChange={() => onToggle(task.id)}
+            className="mt-0.5 size-5"
+          />
+        </motion.span>
 
         {isEditing ? (
           <div className="flex-1 flex flex-col gap-2" data-edit-area>
@@ -278,22 +290,18 @@ export function TaskItem({
               </label>
             </div>
             {(task.deadline || task.recurrence) && (
-              <div className="flex items-center gap-2 text-[11px] mt-0.5">
+              <div className="flex items-center gap-2 text-[11px] mt-1">
                 {task.deadline && (
                   new Date(task.deadline).getTime() < Date.now() ? (
-                    <div className="flex items-center gap-1">
-                      <Clock size={12} weight="bold" className="text-destructive" />
-                      <span className="text-destructive font-medium">
-                        {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                      </span>
-                    </div>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-destructive-soft text-destructive font-semibold">
+                      <Clock size={11} weight="bold" />
+                      {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </span>
                   ) : (
-                    <div className="flex items-center gap-1">
-                      <Clock size={12} className="text-muted-foreground" />
-                      <span className="text-muted-foreground">
-                        {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                      </span>
-                    </div>
+                    <span className="inline-flex items-center gap-1 text-muted-foreground">
+                      <Clock size={12} />
+                      {new Date(task.deadline).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </span>
                   )
                 )}
                 <RecurrenceBadge recurrence={task.recurrence} />
