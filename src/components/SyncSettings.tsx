@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, ReactNode } from 'react';
+import { CheckCircle, CircleNotch, WarningCircle, CloudSlash, Prohibit } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -43,12 +44,12 @@ export function SyncSettings({
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const statusLabel: Record<SyncStatus, string> = {
-    idle: '✅ Synced',
-    syncing: '🔄 Syncing...',
-    error: '⚠️ Error',
-    offline: '📴 Offline',
-    disabled: '⏹️ Disabled',
+  const statusDisplay: Record<SyncStatus, { icon: ReactNode; label: string; className: string }> = {
+    idle: { icon: <CheckCircle size={14} weight="fill" />, label: 'Synced', className: 'text-accent' },
+    syncing: { icon: <CircleNotch size={14} weight="bold" className="animate-spin" />, label: 'Syncing…', className: 'text-primary' },
+    error: { icon: <WarningCircle size={14} weight="fill" />, label: 'Error', className: 'text-destructive' },
+    offline: { icon: <CloudSlash size={14} weight="fill" />, label: 'Offline', className: 'text-muted-foreground' },
+    disabled: { icon: <Prohibit size={14} weight="bold" />, label: 'Disabled', className: 'text-muted-foreground' },
   };
 
   return (
@@ -66,9 +67,12 @@ export function SyncSettings({
         {syncConfig?.enabled ? (
           <div className="py-4 space-y-4">
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Status</span>
-                <span>{statusLabel[syncStatus]}</span>
+                <span className={`inline-flex items-center gap-1.5 font-medium ${statusDisplay[syncStatus].className}`}>
+                  {statusDisplay[syncStatus].icon}
+                  {statusDisplay[syncStatus].label}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Last sync</span>
